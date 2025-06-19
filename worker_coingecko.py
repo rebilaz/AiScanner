@@ -148,7 +148,7 @@ def upload_to_bigquery(df, table_id):
     print(f"Upload de {len(df)} lignes terminé sur BigQuery.")
 
 
-def main():
+def run_coingecko_pipeline():
     """
     Fonction principale du script.
     """
@@ -223,4 +223,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_coingecko_pipeline()
