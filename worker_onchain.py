@@ -6,6 +6,10 @@ from google.cloud import bigquery
 import pandas as pd
 from config import *
 
+# Valeur par défaut pour qualifier une transaction de "whale" en USD.
+# Si le paramètre est défini dans config.py, il sera utilisé, sinon on prend 100000 USD.
+WHALE_TRANSACTION_USD = globals().get("WHALE_TRANSACTION_USD", 100000)
+
 API_ENDPOINTS = {
     "ethereum": {"url": "https://api.etherscan.io/api", "key": ETHERSCAN_API_KEY},
     "binance-smart-chain": {"url": "https://api.bscscan.com/api", "key": BSCSCAN_API_KEY},
