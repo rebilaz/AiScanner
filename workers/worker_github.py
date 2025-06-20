@@ -288,6 +288,7 @@ def run_github_worker() -> bool:
         f"LEFT JOIN `{DEST_TABLE_ID}` t2 ON t1.id_projet = t2.id_projet "
         "WHERE t2.id_projet IS NULL AND t1.lien_github IS NOT NULL"
     )
+    # Disable BigQuery Storage API to avoid proxy issues
     tasks = client.query(query).to_dataframe(create_bqstorage_client=False)
     if tasks.empty:
         logging.info("Aucun nouveau projet à analyser.")
