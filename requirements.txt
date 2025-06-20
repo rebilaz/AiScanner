@@ -1,6 +1,11 @@
 requests
+aiohttp
+aiolimiter
+python-dotenv
 google-cloud-bigquery
 pandas
 db-dtypes
 google-cloud-bigquery-storage
 pandas-gbq
+pytest
+pytest-asyncio
