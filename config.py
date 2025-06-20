@@ -44,3 +44,7 @@ MIN_VOLUME_USD = 50000
 # --- PARAMÈTRES D'EXÉCUTION (non utilisés par ce script) ---
 BATCH_SIZE = 20
 TEST_MODE = False
+
+# --- CEX WORKER PARAMETERS ---
+CEX_PAIRS = os.getenv("CEX_PAIRS", "BTC/USDT")
+CEX_INTERVAL = os.getenv("CEX_INTERVAL", "1m")
