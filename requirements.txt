@@ -4,3 +4,4 @@ pandas
 db-dtypes
 google-cloud-bigquery-storage
 pandas-gbq
+python-dotenv

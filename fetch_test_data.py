@@ -1,7 +1,7 @@
 # Fichier : fetch_github_test_data.py (Corrigé)
 import requests
 import json # <-- AJOUT DE L'IMPORT
-from config import GITHUB_PAT
+from config import PAT_GITHUB
 
 REPO_OWNER = "golemfactory"
 REPO_NAME = "golem"
@@ -10,12 +10,12 @@ LANGUAGES_OUTPUT_FILE = "test_data_languages.json"
 
 print(f"Récupération des données de test pour le dépôt : {REPO_OWNER}/{REPO_NAME}...")
 
-headers = {'Authorization': f'Bearer {GITHUB_PAT}'}
+headers = {'Authorization': f'Bearer {PAT_GITHUB}'}
 base_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}"
 
 try:
-    if not GITHUB_PAT or GITHUB_PAT == "VOTRE_PAT_GITHUB_ICI":
-        raise ValueError("La clé API GitHub (GITHUB_PAT) n'est pas configurée dans config.py")
+    if not PAT_GITHUB or PAT_GITHUB == "VOTRE_PAT_GITHUB_ICI":
+        raise ValueError("La clé API GitHub (PAT_GITHUB) n'est pas configurée dans config.py")
 
     # Appel 1: Infos générales
     repo_response = requests.get(base_url, headers=headers)
