@@ -6,7 +6,7 @@ load_dotenv()
 
 # --- CLÉS D'API ---
 COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
-GITHUB_PAT = os.getenv("GITHUB_PAT")
+PAT_GITHUB = os.getenv("PAT_GITHUB")
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY")
 BSCSCAN_API_KEY = os.getenv("BSCSCAN_API_KEY")
 POLYGONSCAN_API_KEY = os.getenv("POLYGONSCAN_API_KEY")
