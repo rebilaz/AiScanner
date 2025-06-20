@@ -288,7 +288,7 @@ def run_github_worker() -> bool:
         f"LEFT JOIN `{DEST_TABLE_ID}` t2 ON t1.id_projet = t2.id_projet "
         "WHERE t2.id_projet IS NULL AND t1.lien_github IS NOT NULL"
     )
-    tasks = client.query(query).to_dataframe()
+    tasks = client.query(query).to_dataframe(create_bqstorage_client=False)
     if tasks.empty:
         logging.info("Aucun nouveau projet à analyser.")
         return True
@@ -315,10 +315,11 @@ def run_github_worker() -> bool:
     if results:
         job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
         df = pd.DataFrame(results)
-        # Conversion silencieuse de la date au format datetime64[ns, UTC]
+        # Conversion silencieuse au format attendu (datetime64[ns])
         if "date_analyse" in df.columns:
-            df["date_analyse"] = pd.to_datetime(
-                df["date_analyse"], errors="coerce", utc=True
+            df["date_analyse"] = (
+                pd.to_datetime(df["date_analyse"], errors="coerce", utc=True)
+                .dt.tz_convert(None)
             )
         client.load_table_from_dataframe(df, DEST_TABLE_ID, job_config=job_config).result()
         logging.info("%d résultats ajoutés à %s", len(df), DEST_TABLE_ID)

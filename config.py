@@ -19,6 +19,13 @@ GOOGLE_CREDENTIALS_PATH = os.getenv(
 )
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_CREDENTIALS_PATH
 
+# Configure gRPC to trust the MITM proxy's certificate if provided
+DEFAULT_GRPC_ROOTS_PATH = "/usr/local/share/ca-certificates/envoy-mitmproxy-ca-cert.crt"
+GRPC_DEFAULT_SSL_ROOTS_FILE_PATH = os.getenv(
+    "GRPC_DEFAULT_SSL_ROOTS_FILE_PATH", DEFAULT_GRPC_ROOTS_PATH
+)
+os.environ["GRPC_DEFAULT_SSL_ROOTS_FILE_PATH"] = GRPC_DEFAULT_SSL_ROOTS_FILE_PATH
+
 # --- CONFIGURATION API COINGECKO ---
 COINGECKO_API_BASE_URL = "https://api.coingecko.com/api/v3"
 
