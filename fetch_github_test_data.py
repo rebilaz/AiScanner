@@ -2,7 +2,7 @@
 # Ce script ne sert qu'une seule fois : récupérer des exemples de données GitHub.
 import requests
 import json
-from config import GITHUB_PAT
+from config import PAT_GITHUB
 
 # Un exemple de dépôt de code de dApp/protocole (celui de Golem)
 # pour avoir des données de test réalistes.
@@ -15,7 +15,7 @@ LANGUAGES_OUTPUT_FILE = "test_data_languages.json"
 
 print(f"Récupération des données de test pour le dépôt : {REPO_OWNER}/{REPO_NAME}...")
 
-headers = {'Authorization': f'Bearer {GITHUB_PAT}'}
+headers = {'Authorization': f'Bearer {PAT_GITHUB}'}
 base_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}"
 
 try:

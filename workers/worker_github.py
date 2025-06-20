@@ -10,6 +10,7 @@ cohérente avec les autres workers du projet.
 from __future__ import annotations
 
 import os
+import sys
 import time
 import logging
 from dataclasses import dataclass
@@ -22,6 +23,7 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 from dotenv import load_dotenv
 
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import config
 
 # ---------------------------------------------------------------------------
@@ -30,7 +32,7 @@ import config
 
 load_dotenv()
 
-GITHUB_PAT = os.getenv("GITHUB_PAT", config.GITHUB_PAT)
+PAT_GITHUB = os.getenv("PAT_GITHUB", config.PAT_GITHUB)
 GOOGLE_CLOUD_PROJECT_ID = os.getenv(
     "GOOGLE_CLOUD_PROJECT_ID", config.GOOGLE_CLOUD_PROJECT_ID
 )
@@ -291,7 +293,7 @@ def run_github_worker() -> bool:
         logging.info("Aucun nouveau projet à analyser.")
         return True
 
-    analyzer = GitHubAnalyzer(GITHUB_PAT)
+    analyzer = GitHubAnalyzer(PAT_GITHUB)
     results: List[Dict[str, Any]] = []
 
     batch = tasks.head(BATCH_SIZE)
