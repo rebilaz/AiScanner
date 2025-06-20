@@ -315,6 +315,11 @@ def run_github_worker() -> bool:
     if results:
         job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
         df = pd.DataFrame(results)
+        # Conversion silencieuse de la date au format datetime64[ns, UTC]
+        if "date_analyse" in df.columns:
+            df["date_analyse"] = pd.to_datetime(
+                df["date_analyse"], errors="coerce", utc=True
+            )
         client.load_table_from_dataframe(df, DEST_TABLE_ID, job_config=job_config).result()
         logging.info("%d résultats ajoutés à %s", len(df), DEST_TABLE_ID)
     return True
