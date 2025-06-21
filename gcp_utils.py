@@ -33,7 +33,7 @@ class BigQueryClient:
                 field_type = "BOOLEAN"
             elif pd.api.types.is_datetime64_any_dtype(dtype):
                 field_type = "TIMESTAMP"
-            schema.append(bigquery.SchemaField(column, field_type))
+            schema.append(bigquery.SchemaField(str(column), field_type))
         return schema
 
     def ensure_dataset_exists(self, dataset_id: str, location: str = "EU") -> None:
@@ -48,7 +48,7 @@ class BigQueryClient:
         """
         dataset_ref = bigquery.Dataset(f"{self.client.project}.{dataset_id}")
         try:
-            self.client.get_dataset(dataset_ref)
+            self.client.get_dataset(dataset_ref.reference)
             self.logger.info("Dataset %s already exists", dataset_id)
         except exceptions.NotFound:
             dataset_ref.location = location

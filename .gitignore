@@ -1,0 +1,14 @@
+# Fichier de configuration local contenant tous les secrets. Ne jamais commiter !
+.env
+
+# Règle générale pour ignorer TOUS les fichiers .json par sécurité.
+*.json
+
+# Dossiers de cache et de dépendances Python générés automatiquement.
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Dossier d'environnement virtuel (si vous en utilisez un).
+.venv/
+venv/
