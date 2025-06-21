@@ -1,7 +1,9 @@
-requests
-google-cloud-bigquery
+aiohttp
+aiolimiter
 pandas
-db-dtypes
-google-cloud-bigquery-storage
-pandas-gbq
+google-cloud-bigquery
 python-dotenv
+pytest
+pytest-mock
+pytest-asyncio
+playwright
