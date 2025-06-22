@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 import os
@@ -61,8 +62,8 @@ async def gather_ohlcv(clients: list[tuple[str, AbstractCEXClient]], pairs: list
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-async def main() -> None:
-    """Entry point for the asynchronous CEX worker."""
+async def run_cex_worker() -> None:
+    """Collect OHLCV data from CEXes and upload to BigQuery."""
     load_dotenv()
 
     project_id = os.getenv("GCP_PROJECT_ID")
@@ -125,5 +126,28 @@ async def main() -> None:
         logging.info("Data collection completed")
 
 
+def parse_args() -> str:
+    parser = argparse.ArgumentParser(description="Run selected data worker")
+    parser.add_argument(
+        "worker",
+        choices=["cex", "dex"],
+        help="Worker type to run",
+    )
+    args = parser.parse_args()
+    return args.worker
+
+
+def main() -> None:
+    worker = parse_args()
+    if worker == "cex":
+        asyncio.run(run_cex_worker())
+    elif worker == "dex":
+        from worker_dex import run_dex_worker
+
+        asyncio.run(run_dex_worker())
+    else:
+        raise ValueError(f"Unknown worker: {worker}")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
