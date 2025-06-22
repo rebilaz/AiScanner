@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from gcp_utils import BigQueryClient
 from clients.binance import BinanceClient
 from clients.kraken import KrakenClient
+from clients.base import AbstractCEXClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +42,7 @@ def _normalize_ohlcv(df: pd.DataFrame, pair: str, source: str, interval: str) ->
     ]
 
 
-async def gather_ohlcv(clients: list[tuple[str, object]], pairs: list[str], interval: str) -> pd.DataFrame:
+async def gather_ohlcv(clients: list[tuple[str, AbstractCEXClient]], pairs: list[str], interval: str) -> pd.DataFrame:
     tasks = []
     meta = []
     for pair in pairs:
@@ -87,8 +88,9 @@ async def main() -> None:
     ssl_context = None
     if cert_file:
         ssl_context = ssl.create_default_context(cafile=cert_file)
-
-    connector = aiohttp.TCPConnector(ssl=ssl_context)
+        connector = aiohttp.TCPConnector(ssl=ssl_context)
+    else:
+        connector = aiohttp.TCPConnector()
 
     async with aiohttp.ClientSession(connector=connector) as session:
         clients = []

@@ -4,6 +4,7 @@ from aiolimiter import AsyncLimiter
 import aiohttp
 import pandas as pd
 import logging
+from typing import Optional
 
 try:
     from playwright.async_api import async_playwright
@@ -30,7 +31,7 @@ class AbstractCEXClient(abc.ABC):
         self, method: str, url: str, params: dict | None = None
     ) -> dict | None:
         """Attempt to fetch a URL using a remote browser via Playwright."""
-        if async_playwright is None or self.browser_ws is None:
+        if async_playwright is None or not self.browser_ws:
             return None
         try:
             async with async_playwright() as p:
@@ -99,9 +100,9 @@ class AbstractCEXClient(abc.ABC):
         raise RuntimeError(f"Failed request to {url} after {retries} attempts")
 
     @abc.abstractmethod
-    async def get_ohlcv(self, pair: str, interval: str) -> pd.DataFrame:
+    async def get_ohlcv(self, pair: str, interval: str) -> Optional[pd.DataFrame]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_order_book(self, pair: str, depth: int) -> pd.DataFrame:
+    async def get_order_book(self, pair: str, depth: int) -> Optional[pd.DataFrame]:
         raise NotImplementedError
