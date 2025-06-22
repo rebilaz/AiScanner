@@ -44,9 +44,10 @@ async def run_dex_worker() -> None:
     project_id = os.getenv("GCP_PROJECT_ID")
     dataset = os.getenv("BQ_DATASET")
     table = os.getenv("DEX_BIGQUERY_TABLE", "dex_market_data")
-    endpoint = os.getenv(
-        "THEGRAPH_UNISWAP_ENDPOINT",
-        "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3",
+    endpoint = (
+        os.getenv("THEGRAPH_UNISWAP_ENDPOINT")
+        or os.getenv("THEGRAPH_UNISWAPV3_ENDPOINT")
+        or "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3"
     )
 
     if not project_id or not dataset:

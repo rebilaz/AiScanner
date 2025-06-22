@@ -35,7 +35,7 @@ async def test_run_dex_worker_uploads_dataframe(mocker):
             "GCP_PROJECT_ID": "proj",
             "BQ_DATASET": "dataset",
             "DEX_BIGQUERY_TABLE": "table",
-            "THEGRAPH_UNISWAP_ENDPOINT": "http://example.com",
+            "THEGRAPH_UNISWAPV3_ENDPOINT": "http://example.com",
         }
     )
 
