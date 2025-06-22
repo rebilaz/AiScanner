@@ -4,14 +4,15 @@ import pandas as pd
 import os
 from google.cloud import bigquery
 from google.oauth2 import service_account
-import config
+from dotenv import load_dotenv
 
 # Setup des credentials
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config.GOOGLE_CREDENTIALS_PATH
+load_dotenv()
+os.environ.setdefault("GOOGLE_APPLICATION_CREDENTIALS", os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""))
 
 # Paramètres
-category = "artificial-intelligence"
-table_id = "starlit-verve-458814-u9.projectscanner.Market_data"
+category = os.getenv("COINGECKO_CATEGORY", "artificial-intelligence")
+table_id = os.getenv("COINGECKO_TABLE_ID", "project.dataset.table")
 LIMIT = 20
 
 def fetch_with_retry(url, retries=3, sleep_sec=2):
@@ -92,7 +93,9 @@ def main():
     print(df.head())
 
     # Upload sur BigQuery
-    creds = service_account.Credentials.from_service_account_file(config.GOOGLE_CREDENTIALS_PATH)
+    creds = service_account.Credentials.from_service_account_file(
+        os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    )
     client = bigquery.Client(credentials=creds, project=creds.project_id)
     job = client.load_table_from_dataframe(df, table_id)
     job.result()

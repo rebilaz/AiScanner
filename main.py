@@ -13,6 +13,9 @@ from gcp_utils import BigQueryClient
 from clients.binance import BinanceClient
 from clients.kraken import KrakenClient
 from clients.base import AbstractCEXClient
+from workers.worker_coingecko import run_coingecko_worker
+from workers.worker_github import run_github_worker
+from workers.worker_onchain import run_onchain_worker
 
 logging.basicConfig(
     level=logging.INFO,
@@ -130,7 +133,7 @@ def parse_args() -> str:
     parser = argparse.ArgumentParser(description="Run selected data worker")
     parser.add_argument(
         "worker",
-        choices=["cex", "dex"],
+        choices=["cex", "dex", "coingecko", "github", "onchain"],
         help="Worker type to run",
     )
     args = parser.parse_args()
@@ -145,6 +148,12 @@ def main() -> None:
         from worker_dex import run_dex_worker
 
         asyncio.run(run_dex_worker())
+    elif worker == "coingecko":
+        asyncio.run(run_coingecko_worker())
+    elif worker == "github":
+        asyncio.run(run_github_worker())
+    elif worker == "onchain":
+        asyncio.run(run_onchain_worker())
     else:
         raise ValueError(f"Unknown worker: {worker}")
 
