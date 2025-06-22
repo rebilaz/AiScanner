@@ -1,18 +1,10 @@
-# Fichier : worker_github.py
-"""Worker d'analyse GitHub.
-
-Ce module analyse les dépôts GitHub de projets répertoriés dans
-``Market_data`` et écrit le résultat dans ``github_score``.
-L'implémentation s'inspire de ``worker_coingecko.py`` pour rester
-cohérente avec les autres workers du projet.
-"""
+"""GitHub analysis worker refactored for integration with main.py."""
 
 from __future__ import annotations
 
-import os
-import sys
-import time
 import logging
+import os
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
@@ -23,38 +15,12 @@ from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 from dotenv import load_dotenv
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-import config
-
-# ---------------------------------------------------------------------------
-# Chargement de la configuration
-# ---------------------------------------------------------------------------
-
-load_dotenv()
-
-PAT_GITHUB = os.getenv("PAT_GITHUB", config.PAT_GITHUB)
-GOOGLE_CLOUD_PROJECT_ID = os.getenv(
-    "GOOGLE_CLOUD_PROJECT_ID", config.GOOGLE_CLOUD_PROJECT_ID
-)
-BIGQUERY_DATASET = os.getenv("BIGQUERY_DATASET", config.BIGQUERY_DATASET)
-SOURCE_TABLE = os.getenv("BIGQUERY_SOURCE_TABLE", config.BIGQUERY_STATIC_TABLE)
-DEST_TABLE = os.getenv("BIGQUERY_DEST_TABLE", "github_score")
-BATCH_SIZE = getattr(config, "BATCH_SIZE", 20)
-TEST_MODE = getattr(config, "TEST_MODE", False)
-
-# Authentification BigQuery
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config.GOOGLE_CREDENTIALS_PATH
-
-# Identifiants complets des tables
-SOURCE_TABLE_ID = f"{GOOGLE_CLOUD_PROJECT_ID}.{BIGQUERY_DATASET}.{SOURCE_TABLE}"
-DEST_TABLE_ID = f"{GOOGLE_CLOUD_PROJECT_ID}.{BIGQUERY_DATASET}.{DEST_TABLE}"
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+from gcp_utils import BigQueryClient
 
 
 @dataclass
 class RepoAnalysis:
-    """Données finales insérées dans BigQuery."""
+    """Data structure stored in BigQuery."""
 
     id_projet: str
     depot_github: str
@@ -71,7 +37,7 @@ class RepoAnalysis:
 
 
 class GitHubAnalyzer:
-    """Analyseur GitHub avec gestion de la rate limit."""
+    """Simple GitHub API analyzer with rate limit handling."""
 
     API_BASE = "https://api.github.com"
 
@@ -84,13 +50,10 @@ class GitHubAnalyzer:
             }
         )
 
-    # ------------------------------ Helpers ---------------------------------
     def _get_json(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        """Effectue une requête GET avec gestion du rate limit."""
         for _ in range(3):
             response = self.session.get(url, params=params, timeout=15)
             if response.status_code == 202:
-                # GitHub calcule encore la statistique (cas des endpoints /stats)
                 time.sleep(2)
                 continue
             if (
@@ -106,14 +69,11 @@ class GitHubAnalyzer:
                 return None
             if response.ok:
                 return response.json()
-            logging.warning(
-                "Appel %s renvoyé %s", url, response.status_code
-            )
+            logging.warning("Appel %s renvoyé %s", url, response.status_code)
             time.sleep(2)
         return None
 
     def find_best_repo(self, owner: str) -> Optional[Dict[str, Any]]:
-        """Sélectionne le dépôt le plus pertinent pour un owner."""
         repos = self._get_json(
             f"{self.API_BASE}/users/{owner}/repos",
             params={"type": "owner", "sort": "pushed", "per_page": 100},
@@ -143,7 +103,6 @@ class GitHubAnalyzer:
                 best_repo = repo
         return best_repo
 
-    # ----------------------------- Scoring ----------------------------------
     def compute_scores(self, owner: str, repo: str) -> Optional[RepoAnalysis]:
         repo_data = self._get_json(f"{self.API_BASE}/repos/{owner}/{repo}")
         if not repo_data:
@@ -151,7 +110,6 @@ class GitHubAnalyzer:
 
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-        # Activity score -----------------------------------------------------
         activity_score = 0.0
         commits = self._get_json(
             f"{self.API_BASE}/repos/{owner}/{repo}/stats/commit_activity"
@@ -176,7 +134,6 @@ class GitHubAnalyzer:
         open_issues = repo_data.get("open_issues_count", 0)
         activity_score += max(0, 5 - open_issues / 50)
 
-        # Community score ----------------------------------------------------
         community_score = 0.0
         community_score += min(repo_data.get("stargazers_count", 0) / 100.0, 20)
         community_score += min(repo_data.get("forks_count", 0) / 50.0, 10)
@@ -187,7 +144,6 @@ class GitHubAnalyzer:
         if isinstance(contributors, list) and contributors:
             community_score += 5
 
-        # Good practices score ----------------------------------------------
         good_score = 0.0
         if repo_data.get("license"):
             good_score += 5
@@ -204,7 +160,6 @@ class GitHubAnalyzer:
         if workflows and workflows.get("total_count", 0) > 0:
             good_score += 5
 
-        # Code relevance score ----------------------------------------------
         code_score = 0.0
         pkg_files = ["requirements.txt", "package.json"]
         for file in pkg_files:
@@ -235,10 +190,7 @@ class GitHubAnalyzer:
             type_depot=repo_type,
         )
 
-    # ---------------------------------------------------------------------
     def analyze(self, project_id: str, url: str) -> Optional[RepoAnalysis]:
-        """Analyse un projet à partir de son URL GitHub."""
-        # URL possible: https://github.com/owner/repo ou https://github.com/owner
         parts = url.rstrip("/").split("/")[-2:]
         if len(parts) == 1:
             best = self.find_best_repo(parts[0])
@@ -255,18 +207,31 @@ class GitHubAnalyzer:
         return analysis
 
 
-# ---------------------------------------------------------------------------
-# Pipeline principal
-# ---------------------------------------------------------------------------
+async def run_github_worker() -> bool:
+    """Entry point for the GitHub worker."""
+    load_dotenv()
 
-def run_github_worker() -> bool:
-    """Point d'entrée du worker GitHub."""
-    logging.info("Démarrage du worker GitHub")
-    client = bigquery.Client(project=GOOGLE_CLOUD_PROJECT_ID)
+    project_id = os.getenv("GCP_PROJECT_ID")
+    dataset = os.getenv("BQ_DATASET")
+    source_table = os.getenv("GITHUB_SOURCE_TABLE", "Market_data")
+    dest_table = os.getenv("GITHUB_DEST_TABLE", "github_score")
+    batch_size = int(os.getenv("GITHUB_BATCH_SIZE", "20"))
+    token = os.getenv("PAT_GITHUB")
+    test_mode = os.getenv("GITHUB_TEST_MODE", "false").lower() == "true"
 
-    # Création de la table destination si nécessaire
+    if not project_id or not dataset or not token:
+        logging.error("Missing configuration for GitHub worker")
+        return False
+
+    bq_client = BigQueryClient(project_id)
+    bq_client.ensure_dataset_exists(dataset)
+    client = bq_client.client
+
+    dest_table_id = f"{project_id}.{dataset}.{dest_table}"
+    source_table_id = f"{project_id}.{dataset}.{source_table}"
+
     try:
-        client.get_table(DEST_TABLE_ID)
+        client.get_table(dest_table_id)
     except NotFound:
         schema = [
             bigquery.SchemaField("id_projet", "STRING"),
@@ -279,13 +244,13 @@ def run_github_worker() -> bool:
             bigquery.SchemaField("score_total", "FLOAT"),
             bigquery.SchemaField("type_depot", "STRING"),
         ]
-        table = bigquery.Table(DEST_TABLE_ID, schema=schema)
+        table = bigquery.Table(dest_table_id, schema=schema)
         client.create_table(table)
-        logging.info("Table %s créée", DEST_TABLE_ID)
+        logging.info("Table %s créée", dest_table_id)
 
     query = (
-        f"SELECT t1.id_projet, t1.lien_github FROM `{SOURCE_TABLE_ID}` t1 "
-        f"LEFT JOIN `{DEST_TABLE_ID}` t2 ON t1.id_projet = t2.id_projet "
+        f"SELECT t1.id_projet, t1.lien_github FROM `{source_table_id}` t1 "
+        f"LEFT JOIN `{dest_table_id}` t2 ON t1.id_projet = t2.id_projet "
         "WHERE t2.id_projet IS NULL AND t1.lien_github IS NOT NULL"
     )
     tasks = client.query(query).to_dataframe(create_bqstorage_client=False)
@@ -293,10 +258,10 @@ def run_github_worker() -> bool:
         logging.info("Aucun nouveau projet à analyser.")
         return True
 
-    analyzer = GitHubAnalyzer(PAT_GITHUB)
+    analyzer = GitHubAnalyzer(token)
     results: List[Dict[str, Any]] = []
 
-    batch = tasks.head(BATCH_SIZE)
+    batch = tasks.head(batch_size)
     logging.info("%d projets à analyser (lot de %d)", len(tasks), len(batch))
 
     for _, row in batch.iterrows():
@@ -307,24 +272,15 @@ def run_github_worker() -> bool:
             analysis = analyzer.analyze(project_id, url)
             if analysis:
                 results.append(analysis.to_dict())
-        except Exception as exc:
+        except Exception:
             logging.exception("Erreur lors de l'analyse de %s", project_id)
-        if not TEST_MODE:
+        if not test_mode:
             time.sleep(1)
 
     if results:
-        job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
         df = pd.DataFrame(results)
-        # Conversion silencieuse au format attendu (datetime64[ns])
         if "date_analyse" in df.columns:
-            df["date_analyse"] = (
-                pd.to_datetime(df["date_analyse"], errors="coerce", utc=True)
-                .dt.tz_convert(None)
-            )
-        client.load_table_from_dataframe(df, DEST_TABLE_ID, job_config=job_config).result()
-        logging.info("%d résultats ajoutés à %s", len(df), DEST_TABLE_ID)
+            df["date_analyse"] = pd.to_datetime(df["date_analyse"], errors="coerce", utc=True).dt.tz_convert(None)
+        bq_client.upload_dataframe(df, dataset, dest_table)
+        logging.info("%d résultats ajoutés à %s", len(df), dest_table_id)
     return True
-
-
-if __name__ == "__main__":
-    run_github_worker()
