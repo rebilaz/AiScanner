@@ -1,0 +1,7 @@
+discord:
+  channels:
+    - 123456789012345678
+telegram:
+  channels:
+    - "example_channel"
+batch_size: 50

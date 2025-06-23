@@ -1,0 +1,7 @@
+rules:
+  - name: hype_vs_substance
+    params:
+      hype_z_threshold: 2.5
+      commit_days_threshold: 14
+    notifications:
+      slack_webhook_url: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
