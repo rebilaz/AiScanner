@@ -1,0 +1,13 @@
+rss_feeds:
+  - https://example.com/rss
+
+api_sources:
+  - name: example_api
+    url: https://api.example.com/v1/news
+    params:
+      q: crypto
+    headers:
+      Authorization: "Bearer YOUR_API_KEY"
+
+scrape_urls:
+  - https://blog.example.com/article

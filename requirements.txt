@@ -9,3 +9,25 @@ pytest-asyncio
 playwright
 
 gql[aiohttp]
+requests
+
+tweepy
+praw
+pyyaml
+discord.py
+telethon
+transformers
+nltk
+feedparser
+trafilatura
+bertopic
+sentence-transformers
+hdbscan
+umap-learn
+openai
+slack_sdk
+scikit-learn
+
+joblib
+xgboost
+tqdm

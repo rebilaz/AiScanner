@@ -1,0 +1,7 @@
+bridges:
+  - name: example_bridge
+    chains:
+      - chain_id: 1
+        contract_address: "0x0000000000000000000000000000000000000000"
+        deposit_event_name: "Deposit"
+        withdrawal_event_name: "Withdrawal"
