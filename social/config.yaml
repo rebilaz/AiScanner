@@ -1,0 +1,10 @@
+# Example configuration for social media scrapers
+keywords:
+  - bitcoin
+  - ethereum
+cashtags:
+  - BTC
+  - ETH
+subreddits:
+  - CryptoCurrency
+  - ethereum

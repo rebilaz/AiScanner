@@ -1,0 +1,22 @@
+# Example scoring configuration
+# Weights for sub-scores in the global score
+global_weights:
+  hype: 0.2
+  security: 0.3
+  development: 0.3
+  fundamentals: 0.2
+
+# Metrics and weights for each sub-score
+metrics:
+  hype:
+    hype_score: 0.7
+    hype_growth_rate: 0.3
+  security:
+    audit_score: 0.6
+    bug_bounty_score: 0.4
+  development:
+    github_commits: 0.5
+    contributor_count: 0.5
+  fundamentals:
+    liquidity_ratio: 0.5
+    revenue_growth: 0.5
