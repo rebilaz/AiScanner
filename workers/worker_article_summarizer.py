@@ -67,12 +67,13 @@ def summarize(text: str) -> str:
         return ""
     openai.api_key = OPENAI_API_KEY
     try:
-        resp = openai.ChatCompletion.create(
+        resp = openai.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             temperature=0.2,
         )
-        return resp.choices[0].message["content"].strip()
+        content = resp.choices[0].message.content
+        return content.strip() if content is not None else ""
     except Exception:
         logging.exception("LLM summarization failed")
         return ""

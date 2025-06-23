@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Configuration
 # ---------------------------------------------------------------------------
 PROJECT_ID = os.getenv("GCP_PROJECT_ID")
-DEST_DATASET = os.getenv("BQ_DATASET")
+DEST_DATASET = os.getenv("BQ_DATASET") or ""
 MAX_BLOCK_RANGE = int(os.getenv("ETH_SYNC_MAX_BLOCKS", "0"))  # 0 = no limit
 
 SOURCE_TABLES = {

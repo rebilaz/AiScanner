@@ -77,7 +77,7 @@ def decode_log(row: pd.Series, abi: List[Dict[str, Any]]) -> Optional[Dict[str, 
         "data": row["data"],
     }
     try:
-        decoded = get_event_data(w3.codec, event_abi, raw_log)
+        decoded = get_event_data(w3.codec, event_abi, raw_log)  # type: ignore[arg-type]
     except Exception as exc:  # pragma: no cover - complex web3 errors
         logging.exception("Failed to decode log %s: %s", row.get("transaction_hash"), exc)
         return None
