@@ -26,77 +26,77 @@ with DAG(
     # Airflow Variables so they can be updated without modifying the DAG.
     task_2_1 = BashOperator(
         task_id="run_worker_2_1",
-        bash_command="python {{ var.value.worker_2_1_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_2_1.py",
     )
 
     task_2_2 = BashOperator(
         task_id="run_worker_2_2",
-        bash_command="python {{ var.value.worker_2_2_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_2_2.py",
     )
 
     task_2_3 = BashOperator(
         task_id="run_worker_2_3",
-        bash_command="python {{ var.value.worker_2_3_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_2_3.py",
     )
 
     task_5_1 = BashOperator(
         task_id="run_worker_5_1",
-        bash_command="python {{ var.value.worker_5_1_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_5_1.py",
     )
 
     task_5_2 = BashOperator(
         task_id="run_worker_5_2",
-        bash_command="python {{ var.value.worker_5_2_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_5_2.py",
     )
 
     task_7_3 = BashOperator(
         task_id="run_worker_7_3",
-        bash_command="python {{ var.value.worker_7_3_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_7_3.py",
     )
 
     task_4_1 = BashOperator(
         task_id="run_worker_4_1",
-        bash_command="python {{ var.value.worker_4_1_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_4_1.py",
     )
 
     task_4_2 = BashOperator(
         task_id="run_worker_4_2",
-        bash_command="python {{ var.value.worker_4_2_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_4_2.py",
     )
 
     task_4_3 = BashOperator(
         task_id="run_worker_4_3",
-        bash_command="python {{ var.value.worker_4_3_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_4_3.py",
     )
 
     task_3_1 = BashOperator(
         task_id="run_worker_3_1",
-        bash_command="python {{ var.value.worker_3_1_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_3_1.py",
     )
 
     task_6_3 = BashOperator(
         task_id="run_worker_6_3",
-        bash_command="python {{ var.value.worker_6_3_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_6_3.py",
     )
 
     task_7_2 = BashOperator(
         task_id="run_worker_7_2",
-        bash_command="python {{ var.value.worker_7_2_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_7_2.py",
     )
 
     task_3_2 = BashOperator(
         task_id="run_worker_3_2",
-        bash_command="python {{ var.value.worker_3_2_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_3_2.py",
     )
 
     task_7_1 = BashOperator(
         task_id="run_worker_7_1",
-        bash_command="python {{ var.value.worker_7_1_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_7_1.py",
     )
 
     task_7_4 = BashOperator(
         task_id="run_worker_7_4",
-        bash_command="python {{ var.value.worker_7_4_path }}",
+        bash_command="python {{ dag.folder }}/../workers/worker_7_4.py",
     )
 
     # Task dependencies defining the workflow order. Adjust these as the
