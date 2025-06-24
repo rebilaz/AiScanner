@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Tuple
 
 import pandas as pd
 from google.cloud import bigquery
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from gcp_utils import BigQueryClient
 
