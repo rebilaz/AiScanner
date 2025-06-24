@@ -12,3 +12,16 @@ __pycache__/
 # Dossier d'environnement virtuel (si vous en utilisez un).
 .venv/
 venv/
+
+# Fichiers locaux d'Airflow
+airflow.db
+airflow.cfg
+unittests.cfg
+webserver_config.py
+
+# Dossier de logs
+logs/
+
+# Fichiers de configuration d'éditeur
+.vscode/
+.idea/

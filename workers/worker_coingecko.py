@@ -80,8 +80,12 @@ async def run_coingecko_worker() -> None:
             return
 
         df_market = pd.DataFrame(market)
-        df_market["market_cap"] = pd.to_numeric(df_market["market_cap"], errors="coerce").fillna(0)
-        df_market["total_volume"] = pd.to_numeric(df_market["total_volume"], errors="coerce").fillna(0)
+        df_market["market_cap"] = pd.to_numeric(df_market["market_cap"], errors="coerce")
+        if isinstance(df_market["market_cap"], pd.Series):
+            df_market["market_cap"] = df_market["market_cap"].fillna(0)
+        df_market["total_volume"] = pd.to_numeric(df_market["total_volume"], errors="coerce")
+        if isinstance(df_market["total_volume"], pd.Series):
+            df_market["total_volume"] = df_market["total_volume"].fillna(0)
         df_market = df_market[
             (df_market["market_cap"] >= min_cap) & (df_market["total_volume"] >= min_vol)
         ]
