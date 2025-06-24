@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       script:
-        description: 'Script Python à exécuter (ex: main.py ou workers/worker_github.py)'
+        description: 'Script Python à exécuter (ex: main.py ou workers/worker_2_2.py)'
         required: true
         default: 'main.py'
 

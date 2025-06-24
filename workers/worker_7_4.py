@@ -23,7 +23,10 @@ TOKEN_TRANSFERS_TABLE = os.getenv("BQ_TOKEN_TRANSFERS_TABLE", "token_transfers")
 SENTIMENT_TABLE = os.getenv("BQ_SENTIMENT_TABLE", "social_sentiment_timeseries")
 DEST_TABLE = os.getenv("BQ_NFT_TRENDS_TABLE", "nft_collection_trends")
 SECURITY_TASKS_TABLE = os.getenv("BQ_SECURITY_TASKS_TABLE", "security_analysis_tasks")
-CONFIG_PATH = os.getenv("NFT_CONFIG_PATH", os.path.join(os.path.dirname(__file__), "config.yaml"))
+CONFIG_PATH = os.getenv(
+    "NFT_CONFIG_PATH",
+    os.path.join(os.path.dirname(__file__), "worker_7_4_config.yaml"),
+)
 OPENSEA_API_KEY = os.getenv("OPENSEA_API_KEY")
 
 # ---------------------------------------------------------------------------
