@@ -13,9 +13,9 @@ from gcp_utils import BigQueryClient
 from clients.binance import BinanceClient
 from clients.kraken import KrakenClient
 from clients.base import AbstractCEXClient
-from workers.worker_coingecko import run_coingecko_worker
-from workers.worker_github import run_github_worker
-from workers.worker_onchain import run_onchain_worker
+from workers.worker_2_1 import run_coingecko_worker
+from workers.worker_2_2 import run_github_worker
+from workers.worker_2_3 import run_onchain_worker
 
 logging.basicConfig(
     level=logging.INFO,
