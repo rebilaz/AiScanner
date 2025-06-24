@@ -10,10 +10,15 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Tuple
 
 import pandas as pd
 from google.cloud import bigquery
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from gcp_utils import BigQueryClient
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -107,7 +112,9 @@ async def run_eth_sync_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    bq_client = BigQueryClient(PROJECT_ID)
+    bq_client.ensure_dataset_exists(DEST_DATASET)
+    client = bq_client.client
 
     total_bytes = 0
     for name in SOURCE_TABLES:
