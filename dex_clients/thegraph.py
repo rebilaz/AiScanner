@@ -3,6 +3,10 @@ from typing import List, Dict
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
+import aiohttp
+import socket
+import ssl
+import certifi
 from dotenv import load_dotenv
 
 
@@ -12,7 +16,14 @@ class TheGraphClient:
     def __init__(self, endpoint: str) -> None:
         load_dotenv()
         self.endpoint = endpoint
-        self.transport = AIOHTTPTransport(url=self.endpoint)
+        connector = aiohttp.TCPConnector(
+            family=socket.AF_INET,
+            ssl=ssl.create_default_context(cafile=certifi.where()),
+        )
+        self.transport = AIOHTTPTransport(
+            url=self.endpoint,
+            client_session_args={"connector": connector},
+        )
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def fetch_swaps(

@@ -1,11 +1,16 @@
 import aiohttp
 import asyncio
 import socket
+import ssl
+import certifi
 
 async def main():
     print("Test de la connexion en forçant l'IPv4...")
     try:
-        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        connector = aiohttp.TCPConnector(
+            family=socket.AF_INET,
+            ssl=ssl.create_default_context(cafile=certifi.where()),
+        )
         async with aiohttp.ClientSession(connector=connector) as session:
             # On teste avec l'API de CoinGecko
             async with session.get('https://api.coingecko.com/api/v3/ping') as resp:
