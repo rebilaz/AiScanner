@@ -1,10 +1,13 @@
+
 """Simple worker that fetches, processes, and uploads data to BigQuery."""
 
 import os
 from pathlib import Path
 from typing import List, Dict
 
+
 from google.cloud import bigquery
+
 
 
 def fetch_data_from_api() -> List[Dict[str, str]]:
@@ -32,20 +35,26 @@ def main() -> None:  # pragma: no cover - simple integration script
     print("--- WORKER STARTED ---")
 
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
     if not credentials_path:
         raise RuntimeError(
             "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set"
         )
 
     credentials_file = Path(credentials_path)
+
     print(f"Using credentials file: {credentials_file}")
+
     if not credentials_file.is_file():
         raise FileNotFoundError(
             f"Credential file does not exist: {credentials_file}"
         )
 
+
+
     client = bigquery.Client.from_service_account_json(str(credentials_file))
     print("BigQuery client created successfully.")
+
 
     api_data = fetch_data_from_api()
     print(f"Fetched {len(api_data)} records.")
@@ -75,6 +84,7 @@ def main() -> None:  # pragma: no cover - simple integration script
         raise RuntimeError(f"Failed to insert rows into BigQuery: {errors}")
 
     print("--- WORKER FINISHED ---")
+
 
 
 if __name__ == "__main__":
