@@ -25,3 +25,4 @@ logs/
 # Fichiers de configuration d'éditeur
 .vscode/
 .idea/
+google-cloud-sdk/

@@ -28,7 +28,9 @@ class CoinGeckoClient:
             "sparkline": "false",
         }
         data = await self._get("/coins/markets", params)
-        return data or []
+        if isinstance(data, list):
+            return data
+        return []
 
     async def token_details(self, token_id: str) -> dict | None:
         params = {
