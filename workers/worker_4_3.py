@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 import joblib
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.base import BaseEstimator
 
@@ -73,7 +74,7 @@ def run_ml_analysis_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     contracts = get_contracts_to_analyze(client, BATCH_SIZE)
     if contracts.empty:
         logging.info("No contracts to analyze")

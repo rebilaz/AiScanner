@@ -8,6 +8,7 @@ from typing import Tuple
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 
@@ -93,7 +94,7 @@ async def run_topic_modeler_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
 
     articles = fetch_articles(client)
     if articles.empty:

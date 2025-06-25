@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -95,7 +96,7 @@ def run_static_analysis_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     contracts = get_contracts_to_scan(client, BATCH_SIZE)
     if contracts.empty:
         logging.info("No contracts to analyze")
