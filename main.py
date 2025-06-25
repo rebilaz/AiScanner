@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 import aiohttp
 import ssl
+import socket
+import certifi
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -73,7 +75,6 @@ async def run_cex_worker() -> None:
     dataset = os.getenv("BQ_DATASET")
     table = os.getenv("BQ_TABLE")
     https_proxy = os.getenv("HTTPS_PROXY")
-    cert_file = os.getenv("SSL_CERT_FILE")
     pairs = [p.strip() for p in os.getenv("TRADING_PAIRS", "").split(",") if p]
     interval = os.getenv("INTERVAL", "1m")
     binance_rate = int(os.getenv("BINANCE_RATE_LIMIT", "5"))
@@ -89,12 +90,10 @@ async def run_cex_worker() -> None:
     bq_client = BigQueryClient(project_id)
     bq_client.ensure_dataset_exists(dataset)
 
-    ssl_context = None
-    if cert_file:
-        ssl_context = ssl.create_default_context(cafile=cert_file)
-        connector = aiohttp.TCPConnector(ssl=ssl_context)
-    else:
-        connector = aiohttp.TCPConnector()
+    connector = aiohttp.TCPConnector(
+        family=socket.AF_INET,
+        ssl=ssl.create_default_context(cafile=certifi.where()),
+    )
 
     async with aiohttp.ClientSession(connector=connector) as session:
         clients = []

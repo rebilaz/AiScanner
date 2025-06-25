@@ -8,6 +8,9 @@ from typing import Dict, List, Any
 
 import pandas as pd
 import aiohttp
+import socket
+import ssl
+import certifi
 from dotenv import load_dotenv
 
 # Assurez-vous que ces imports fonctionnent depuis la racine de votre projet
@@ -80,7 +83,11 @@ async def run_coingecko_worker() -> None:
     
     # --- Étape 3: Récupération des données initiales ---
     try:
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(
+            family=socket.AF_INET,
+            ssl=ssl.create_default_context(cafile=certifi.where()),
+        )
+        async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session)
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
             market = await client.list_tokens(category)
