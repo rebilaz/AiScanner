@@ -1,5 +1,6 @@
 import os
 from google.cloud import bigquery
+from dotenv import load_dotenv
 
 
 def main() -> None:
