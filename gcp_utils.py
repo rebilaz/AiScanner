@@ -1,9 +1,29 @@
 import logging
+import os
+from pathlib import Path
 from typing import List
 
 import pandas as pd
 from google.cloud import bigquery
 from google.cloud import exceptions
+
+
+def create_bq_client(project_id: str) -> bigquery.Client:
+    """Return a BigQuery client after validating credentials."""
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not credentials_path:
+        raise RuntimeError(
+            "GOOGLE_APPLICATION_CREDENTIALS environment variable is not set"
+        )
+    credentials_file = Path(credentials_path)
+    logging.info("Using credentials file: %s", credentials_file)
+    if not credentials_file.is_file():
+        raise FileNotFoundError(
+            f"Credential file does not exist: {credentials_file}"
+        )
+    client = bigquery.Client(project=project_id)
+    logging.info("BigQuery client created successfully.")
+    return client
 
 
 class BigQueryClient:
@@ -17,7 +37,7 @@ class BigQueryClient:
         project_id : str
             Google Cloud project identifier.
         """
-        self.client = bigquery.Client(project=project_id)
+        self.client = create_bq_client(project_id)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _generate_schema(self, df: pd.DataFrame) -> List[bigquery.SchemaField]:

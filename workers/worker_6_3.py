@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 from sklearn.preprocessing import MinMaxScaler
 import yaml
 
@@ -118,7 +119,7 @@ def run_asset_scoring_worker() -> None:
         logging.error("Empty scoring configuration")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     df = load_metrics(client)
     if df.empty:
         logging.info("No metrics found to score")

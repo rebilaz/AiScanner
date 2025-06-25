@@ -17,6 +17,7 @@ from typing import List
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 import openai
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -97,7 +98,7 @@ async def run_article_summarizer_worker() -> None:
     if not PROJECT_ID or not DATASET:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     articles = fetch_articles(client)
     if articles.empty:
         logging.info("No articles to summarize")
