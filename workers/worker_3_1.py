@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 from web3 import Web3
 from web3._utils.events import get_event_data
 
@@ -110,7 +111,7 @@ async def run_label_events_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     tokens_df = client.query(
         f"SELECT address, name, symbol FROM `{client.project}.{DATASET}.{TOKENS_TABLE}`"
     ).to_dataframe()

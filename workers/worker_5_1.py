@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import pandas as pd
 import yaml
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -145,7 +146,7 @@ async def run_bridge_flows_worker() -> None:
         return
 
     bridges = load_config()
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
 
     events = fetch_bridge_events(client, bridges)
     if events.empty:

@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import pandas as pd
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, TextClassificationPipeline
 import nltk
 
@@ -202,7 +203,7 @@ def run_social_sentiment_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     asset_map = load_asset_mapping()
 
     last_ts = get_last_processed_timestamp(client)

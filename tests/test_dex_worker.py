@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import pytest
+import tempfile
 
 from worker_dex import run_dex_worker
 from dex_clients.thegraph import TheGraphClient
@@ -39,7 +40,9 @@ async def test_run_dex_worker_uploads_dataframe(mocker):
         }
     )
 
-    await run_dex_worker()
+    with tempfile.NamedTemporaryFile("w", suffix=".json") as tmp:
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = tmp.name
+        await run_dex_worker()
 
     upload_mock.assert_called_once()
     df = upload_mock.call_args.args[0]
