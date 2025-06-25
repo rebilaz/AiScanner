@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import requests
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -142,7 +143,7 @@ async def run_contract_fetcher_worker() -> None:
         logging.error("Missing GCP configuration (GCP_PROJECT_ID, BQ_DATASET)")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
 
     try:
         contracts = get_new_contracts(client, BATCH_SIZE)

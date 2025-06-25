@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 import yaml
 from google.cloud import bigquery
+from gcp_utils import create_bq_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -161,7 +162,7 @@ async def run_trend_analyzer() -> None:
         logging.error("No collections configured")
         return
 
-    client = bigquery.Client(project=PROJECT_ID)
+    client = create_bq_client(PROJECT_ID)
     results: List[Dict[str, Any]] = []
 
     for coll in collections:
