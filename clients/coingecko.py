@@ -1,5 +1,6 @@
 import os
 import aiohttp
+import asyncio
 import logging
 from aiolimiter import AsyncLimiter
 
@@ -14,22 +15,51 @@ class CoinGeckoClient:
         self.limiter = AsyncLimiter(rate_limit, 60)
         self.base = os.getenv("COINGECKO_API_BASE_URL", "https://api.coingecko.com/api/v3")
 
-    async def _get(self, path: str, params: dict | None = None) -> dict | None:
-        async with self.limiter:
-            async with self.session.get(f"{self.base}{path}", params=params) as resp:
-                body = await resp.text()
-                if resp.status != 200:
-                    logging.error(
-                        f"[CoinGeckoClient] status={resp.status} on {path} | params={params} | body={body[:200]}"
-                    )
-                    return None
+
+    async def _get(self, path: str, params: dict | None = None, retries: int = 3) -> dict | None:
+        """Perform GET request with basic retry logic."""
+        backoff = 1
+        url = f"{self.base}{path}"
+        for attempt in range(retries):
+            async with self.limiter:
                 try:
-                    return await resp.json()
-                except Exception as e:
-                    logging.error(
-                        f"[CoinGeckoClient] JSON parse error on {path}: {e} | body={body[:200]}"
-                    )
-                    return None
+                    async with self.session.get(url, params=params) as resp:
+                        body = await resp.text()
+                        if resp.status == 429 or 500 <= resp.status < 600:
+                            raise aiohttp.ClientResponseError(
+                                resp.request_info,
+                                resp.history,
+                                status=resp.status,
+                                message=body,
+                                headers=resp.headers,
+                            )
+                        if resp.status != 200:
+                            logging.error(
+                                f"[CoinGeckoClient] status={resp.status} on {path} | params={params} | body={body[:200]}"
+                            )
+                            return None
+                        try:
+                            return await resp.json()
+                        except Exception as e:
+                            logging.error(
+                                f"[CoinGeckoClient] JSON parse error on {path}: {e} | body={body[:200]}"
+                            )
+                            return None
+                except aiohttp.ClientResponseError as e:
+                    if e.status == 429 or 500 <= e.status < 600:
+                        logging.warning(
+                            "Request failed with status %s. Retry %s/%s in %ss",
+                            e.status,
+                            attempt + 1,
+                            retries,
+                            backoff,
+                        )
+                        await asyncio.sleep(backoff)
+                        backoff *= 2
+                    else:
+                        raise
+        raise RuntimeError(f"Failed request to {url} after {retries} attempts")
+
 
     async def list_tokens(self, category: str) -> list[dict] | None:
         params = {
