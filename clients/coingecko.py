@@ -1,12 +1,12 @@
 import os
 import aiohttp
+import logging
 from aiolimiter import AsyncLimiter
-
 
 class CoinGeckoClient:
     """Minimal async client for the CoinGecko API."""
 
-    def __init__(self, session: aiohttp.ClientSession, rate_limit: int = 10) -> None:
+    def __init__(self, session: aiohttp.ClientSession, rate_limit: int = 1) -> None:
         self.session = session
         self.limiter = AsyncLimiter(rate_limit, 1)
         self.base = os.getenv("COINGECKO_API_BASE_URL", "https://api.coingecko.com/api/v3")
@@ -14,9 +14,19 @@ class CoinGeckoClient:
     async def _get(self, path: str, params: dict | None = None) -> dict | None:
         async with self.limiter:
             async with self.session.get(f"{self.base}{path}", params=params) as resp:
+                body = await resp.text()
                 if resp.status != 200:
+                    logging.error(
+                        f"[CoinGeckoClient] status={resp.status} on {path} | params={params} | body={body[:200]}"
+                    )
                     return None
-                return await resp.json()
+                try:
+                    return await resp.json()
+                except Exception as e:
+                    logging.error(
+                        f"[CoinGeckoClient] JSON parse error on {path}: {e} | body={body[:200]}"
+                    )
+                    return None
 
     async def list_tokens(self, category: str) -> list[dict] | None:
         params = {

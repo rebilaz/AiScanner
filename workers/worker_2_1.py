@@ -1,9 +1,7 @@
-# Fichier : workers/worker_2_1.py
-
 import os
 import asyncio
 import logging
-import socket  # Nécessaire pour le correctif réseau IPv4
+import socket
 from datetime import datetime, timezone
 from typing import Dict, List, Any
 
@@ -11,15 +9,20 @@ import pandas as pd
 import aiohttp
 from dotenv import load_dotenv
 
-# Assurez-vous que ces fichiers sont importables
 from clients.coingecko import CoinGeckoClient
 from gcp_utils import BigQueryClient
 
-# Configuration du logging pour des messages clairs
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+def fetch_existing_ids(bq_client, project_id, dataset, table) -> set:
+    """Retourne un set de tous les id_projet déjà présents dans BigQuery."""
+    query = f"SELECT DISTINCT id_projet FROM `{project_id}.{dataset}.{table}`"
+    results = bq_client.client.query(query)
+    return {row["id_projet"] for row in results}
+
+
 def _extract_data(raw: dict, now_utc: str) -> dict:
-    """Extrait et formate les données brutes de l'API pour BigQuery."""
     roi = raw.get("roi") or {}
     md = raw.get("market_data") or {}
     return {
@@ -56,12 +59,39 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
         "derniere_maj": now_utc,
     }
 
+
+def force_float(df: pd.DataFrame, float_cols=None) -> pd.DataFrame:
+    """Force les colonnes de float_cols en float32/float64 si elles existent dans le DataFrame."""
+    if float_cols is None:
+        float_cols = [
+            "prix_usd",
+            "market_cap",
+            "fully_diluted_valuation",
+            "volume_24h",
+            "high_24h",
+            "low_24h",
+            "price_change_24h",
+            "variation_24h_pct",
+            "market_cap_change_24h",
+            "market_cap_change_percentage_24h",
+            "circulating_supply",
+            "total_supply",
+            "max_supply",
+            "ath_usd",
+            "ath_change_pct",
+            "atl",
+            "atl_change_percentage"
+        ]
+    for col in float_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+    return df
+
+
 async def run_coingecko_worker() -> None:
-    """Fetch token data from CoinGecko and upload to BigQuery."""
     logging.info("\n--- WORKER COINGECKO : DÉMARRAGE ---\n")
     load_dotenv()
 
-    # --- Étape 1: Chargement et validation de la configuration ---
     project_id = os.getenv("GCP_PROJECT_ID")
     if not project_id:
         raise ValueError("La variable d'environnement GCP_PROJECT_ID est manquante.")
@@ -84,17 +114,15 @@ async def run_coingecko_worker() -> None:
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
 
-    # --- Étape 2: Initialisation des clients ---
     bq_client = BigQueryClient(project_id)
     logging.info("Client BigQuery initialisé.")
-    
-    # --- Étape 3: Récupération des données ---
+
+    # Cherche les IDs déjà présents
+    existing_ids = fetch_existing_ids(bq_client, project_id, dataset, table)
+    logging.info(f"{len(existing_ids)} tokens déjà présents dans la table BigQuery.")
+
     try:
-        # --- CORRECTIF RÉSEAU WSL2 ---
-        # Crée le connecteur qui force l'utilisation de l'IPv4
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
-        
-        # On passe ce connecteur à la ClientSession
         async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session)
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
@@ -117,10 +145,11 @@ async def run_coingecko_worker() -> None:
                 logging.info(f"\n--> INFORMATION : Aucun token ne correspond aux critères de filtre. Le worker se termine normalement.\n")
                 return
                 
-            logging.info(f"--> {len(df_filtered)} tokens restants après filtrage. Lancement de la boucle de récupération des détails...\n")
+            # On retire ceux déjà présents en base
+            token_ids_to_fetch = [t for t in df_filtered["id"].tolist() if t not in existing_ids]
+            logging.info(f"{len(token_ids_to_fetch)} tokens à traiter (hors doublons déjà en base).")
 
             records: List[Dict[str, Any]] = []
-            token_ids_to_fetch = df_filtered["id"].tolist()
 
             for i, token_id in enumerate(token_ids_to_fetch):
                 logging.info(f"  [{i+1}/{len(token_ids_to_fetch)}] Récupération des détails pour : {token_id}")
@@ -134,20 +163,24 @@ async def run_coingecko_worker() -> None:
                     records.append(_extract_data(detail, now_utc))
                     
                     if len(records) >= batch_size:
-                        logging.info(f"  --> LOT PRÊT ({len(records)} lignes). Envoi vers BigQuery...")
-                        bq_client.upload_dataframe(pd.DataFrame(records), dataset, table)
+                        df = pd.DataFrame(records)
+                        df = force_float(df)
+                        logging.info(f"  --> LOT PRÊT ({len(df)} lignes). Envoi vers BigQuery...")
+                        bq_client.upload_dataframe(df, dataset, table)
                         logging.info("  --> LOT ENVOYÉ.")
                         records = []
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(7)
                     
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(7)  # Respecter le rate limit de l'API
                 except Exception as e:
                     logging.error(f"  !!! ERREUR LORS DU TRAITEMENT de {token_id}: {e}. On passe au suivant.")
                     continue
                 
             if records:
-                logging.info(f"\n--> DERNIER LOT : Envoi des {len(records)} lignes restantes vers BigQuery...")
-                bq_client.upload_dataframe(pd.DataFrame(records), dataset, table)
+                df = pd.DataFrame(records)
+                df = force_float(df)
+                logging.info(f"\n--> DERNIER LOT : Envoi des {len(df)} lignes restantes vers BigQuery...")
+                bq_client.upload_dataframe(df, dataset, table)
                 logging.info("--> DERNIER LOT ENVOYÉ.")
             
             logging.info("\n--- WORKER COINGECKO : TERMINÉ AVEC SUCCÈS ---\n")
@@ -155,7 +188,7 @@ async def run_coingecko_worker() -> None:
     except aiohttp.ClientConnectorError as e:
         logging.error("!!! ERREUR DE CONNEXION RÉSEAU : Impossible de se connecter à l'API. Vérifiez votre connexion internet ou le statut de WSL.")
         logging.error(f"Détail de l'erreur : {e}")
-        raise # On propage l'erreur pour que Airflow la voie comme un échec
+        raise
 
 if __name__ == "__main__":
     try:
