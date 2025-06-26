@@ -1,7 +1,7 @@
 """Infer honeypot risk from contract opcodes using pretrained ML models."""
 
 from __future__ import annotations
-
+import numpy as np
 import json
 import logging
 import os
@@ -16,6 +16,23 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.base import BaseEstimator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+import socket
+import aiohttp
+
+def create_ipv4_aiohttp_session() -> aiohttp.ClientSession:
+    """
+    Crée et retourne une session aiohttp pré-configurée pour forcer l'utilisation
+    de l'IPv4.
+
+    Ceci est le correctif pour le bug "Network is unreachable" dans WSL2.
+    """
+    # Crée le connecteur qui force l'utilisation de l'IPv4
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
+    
+    # Crée une session en utilisant ce connecteur et la retourne
+    print("INFO: Création d'une session aiohttp avec le correctif IPv4.")
+    return aiohttp.ClientSession(connector=connector)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -88,11 +105,12 @@ def run_ml_analysis_worker() -> None:
         prob = 0.0
         pred_label: str | None = None
         try:
-            if hasattr(model, "predict_proba"):
-                proba = model.predict_proba(X)
+            predict_proba = getattr(model, "predict_proba", None)
+            if callable(predict_proba):
+                proba: np.ndarray = predict_proba(X)  # type: ignore[assignment]
                 prob = float(proba[:, 1][0])
-            pred = model.predict(X)
-            pred_label = str(pred[0])
+                pred = model.predict(X) # type: ignore[attr-defined]
+                pred_label = str(pred[0])
         except Exception:
             logging.exception("ML inference failed for %s", row["contract_address"])
         rows.append(

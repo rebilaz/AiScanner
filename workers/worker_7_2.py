@@ -14,6 +14,23 @@ from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+import socket
+import aiohttp
+
+def create_ipv4_aiohttp_session() -> aiohttp.ClientSession:
+    """
+    Crée et retourne une session aiohttp pré-configurée pour forcer l'utilisation
+    de l'IPv4.
+
+    Ceci est le correctif pour le bug "Network is unreachable" dans WSL2.
+    """
+    # Crée le connecteur qui force l'utilisation de l'IPv4
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
+    
+    # Crée une session en utilisant ce connecteur et la retourne
+    print("INFO: Création d'une session aiohttp avec le correctif IPv4.")
+    return aiohttp.ClientSession(connector=connector)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------

@@ -17,6 +17,22 @@ from dotenv import load_dotenv
 
 from gcp_utils import BigQueryClient
 
+import socket
+import aiohttp
+
+def create_ipv4_aiohttp_session() -> aiohttp.ClientSession:
+    """
+    Crée et retourne une session aiohttp pré-configurée pour forcer l'utilisation
+    de l'IPv4 et des certificats SSL de certifi.
+
+    Ceci est le correctif pour le bug "Network is unreachable" dans WSL2.
+    """
+    # Crée le connecteur qui force l'IPv4
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
+    
+    # Crée une session en utilisant ce connecteur
+    return aiohttp.ClientSession(connector=connector)
+
 
 @dataclass
 class RepoAnalysis:

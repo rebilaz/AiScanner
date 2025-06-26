@@ -1,24 +1,22 @@
-# Fichier : workers/worker_coingecko.py
+# Fichier : workers/worker_2_1.py
 
 import os
 import asyncio
 import logging
+import socket  # Nécessaire pour le correctif réseau IPv4
 from datetime import datetime, timezone
 from typing import Dict, List, Any
 
 import pandas as pd
 import aiohttp
-import socket
-import ssl
-import certifi
 from dotenv import load_dotenv
 
-# Assurez-vous que ces imports fonctionnent depuis la racine de votre projet
+# Assurez-vous que ces fichiers sont importables
 from clients.coingecko import CoinGeckoClient
 from gcp_utils import BigQueryClient
 
-# Configuration du logging de base pour voir les erreurs
-logging.basicConfig(level=logging.INFO)
+# Configuration du logging pour des messages clairs
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def _extract_data(raw: dict, now_utc: str) -> dict:
     """Extrait et formate les données brutes de l'API pour BigQuery."""
@@ -65,28 +63,38 @@ async def run_coingecko_worker() -> None:
 
     # --- Étape 1: Chargement et validation de la configuration ---
     project_id = os.getenv("GCP_PROJECT_ID")
+    if not project_id:
+        raise ValueError("La variable d'environnement GCP_PROJECT_ID est manquante.")
+
     dataset = os.getenv("BQ_DATASET")
+    if not dataset:
+        raise ValueError("La variable d'environnement BQ_DATASET est manquante.")
+    
     table = os.getenv("COINGECKO_BIGQUERY_TABLE")
+    if not table:
+        raise ValueError("La variable d'environnement COINGECKO_BIGQUERY_TABLE est manquante.")
+
     category = os.getenv("COINGECKO_CATEGORY")
+    if not category:
+        raise ValueError("La variable d'environnement COINGECKO_CATEGORY est manquante.")
+
     min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
     min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
     batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
-    if not all([project_id, dataset, table, category]):
-        logging.error("!!! ERREUR FATALE : Configuration manquante. Arrêt.")
-        raise ValueError("Vérifiez GCP_PROJECT_ID, BQ_DATASET, COINGECKO_BIGQUERY_TABLE, COINGECKO_CATEGORY dans votre .env")
 
     # --- Étape 2: Initialisation des clients ---
     bq_client = BigQueryClient(project_id)
     logging.info("Client BigQuery initialisé.")
     
-    # --- Étape 3: Récupération des données initiales ---
+    # --- Étape 3: Récupération des données ---
     try:
-        connector = aiohttp.TCPConnector(
-            family=socket.AF_INET,
-            ssl=ssl.create_default_context(cafile=certifi.where()),
-        )
+        # --- CORRECTIF RÉSEAU WSL2 ---
+        # Crée le connecteur qui force l'utilisation de l'IPv4
+        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        
+        # On passe ce connecteur à la ClientSession
         async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session)
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
@@ -98,7 +106,6 @@ async def run_coingecko_worker() -> None:
 
             logging.info(f"--> API a retourné {len(market)} tokens.")
             
-            # --- Étape 4: Filtrage des données ---
             df_market = pd.DataFrame(market)
             df_market["market_cap"] = pd.to_numeric(df_market["market_cap"], errors="coerce").fillna(0)
             df_market["total_volume"] = pd.to_numeric(df_market["total_volume"], errors="coerce").fillna(0)
@@ -112,7 +119,6 @@ async def run_coingecko_worker() -> None:
                 
             logging.info(f"--> {len(df_filtered)} tokens restants après filtrage. Lancement de la boucle de récupération des détails...\n")
 
-            # --- Étape 5: Récupération des détails et insertion par lots ---
             records: List[Dict[str, Any]] = []
             token_ids_to_fetch = df_filtered["id"].tolist()
 
@@ -132,9 +138,9 @@ async def run_coingecko_worker() -> None:
                         bq_client.upload_dataframe(pd.DataFrame(records), dataset, table)
                         logging.info("  --> LOT ENVOYÉ.")
                         records = []
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(2)
                     
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                 except Exception as e:
                     logging.error(f"  !!! ERREUR LORS DU TRAITEMENT de {token_id}: {e}. On passe au suivant.")
                     continue
@@ -146,17 +152,14 @@ async def run_coingecko_worker() -> None:
             
             logging.info("\n--- WORKER COINGECKO : TERMINÉ AVEC SUCCÈS ---\n")
 
-    except aiohttp.client_exceptions.ClientConnectorError as e:
-        logging.error(f"!!! ERREUR DE CONNEXION RÉSEAU : Impossible de se connecter à l'API. Vérifiez votre connexion internet ou le statut de WSL.")
+    except aiohttp.ClientConnectorError as e:
+        logging.error("!!! ERREUR DE CONNEXION RÉSEAU : Impossible de se connecter à l'API. Vérifiez votre connexion internet ou le statut de WSL.")
         logging.error(f"Détail de l'erreur : {e}")
         raise # On propage l'erreur pour que Airflow la voie comme un échec
 
 if __name__ == "__main__":
-    # Point d'entrée pour lancer le script manuellement
     try:
         asyncio.run(run_coingecko_worker())
     except Exception as e:
-        # Attrape les erreurs fatales (comme la config manquante) et les affiche clairement
         logging.error(f"Une erreur fatale a arrêté le worker : {e}", exc_info=False)
-        # Quitte avec un code d'erreur pour qu'Airflow voie l'échec
         exit(1)

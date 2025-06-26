@@ -1,17 +1,45 @@
-"""Decode Ethereum logs into labeled events and store them in BigQuery."""
-
 from __future__ import annotations
 
-import json
-import logging
 import os
+import time
+import logging
+import json
+import socket
+import ssl
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+import requests
+import aiohttp
+import certifi
 from google.cloud import bigquery
-from gcp_utils import create_bq_client
+from google.api_core.exceptions import NotFound
+from dotenv import load_dotenv
 from web3 import Web3
 from web3._utils.events import get_event_data
+
+
+# Assurez-vous que gcp_utils.py est importable depuis la racine du projet
+from gcp_utils import BigQueryClient, create_bq_client
+
+import socket
+import aiohttp
+
+def create_ipv4_aiohttp_session() -> aiohttp.ClientSession:
+    """
+    Crée et retourne une session aiohttp pré-configurée pour forcer l'utilisation
+    de l'IPv4 et des certificats SSL de certifi.
+
+    Ceci est le correctif pour le bug "Network is unreachable" dans WSL2.
+    """
+    # Crée le connecteur qui force l'IPv4
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
+    
+    # Crée une session en utilisant ce connecteur
+    return aiohttp.ClientSession(connector=connector)
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
