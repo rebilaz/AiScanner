@@ -22,6 +22,7 @@ def fetch_existing_ids(bq_client, project_id, dataset, table) -> set:
     return {row["id_projet"] for row in results}
 
 
+
 def _extract_data(raw: dict, now_utc: str) -> dict:
     roi_raw = raw.get("roi") or {}
     roi = {
@@ -30,6 +31,7 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
         "percentage": roi_raw.get("percentage"),
     }
     md = raw.get("market_data") or {}
+
     return {
         "id_projet": raw.get("id"),
         "symbole": raw.get("symbol", "").upper(),
@@ -53,16 +55,23 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
         "ath_change_pct": md.get("ath_change_percentage", {}).get("usd"),
         "ath_date": md.get("ath_date", {}).get("usd"),
         "atl": md.get("atl", {}).get("usd"),
+
         "atl_change_percentage": md.get("atl_change_percentage", {}).get("usd"),
         "atl_date": md.get("atl_date", {}).get("usd"),
         "roi": roi,
         "last_updated": raw.get("last_updated"),
+
         "chaine_contrat": next(iter(raw.get("platforms", {}) or {}), None),
         "adresse_contrat": next(iter((raw.get("platforms", {}) or {}).values()), None),
         "lien_site_web": (raw.get("links", {}).get("homepage") or [None])[0],
         "lien_github": (raw.get("links", {}).get("repos_url", {}).get("github") or [None])[0],
         "derniere_maj": now_utc,
     }
+
+
+
+
+
 
 
 def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFrame:
@@ -94,11 +103,7 @@ def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFram
             df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
     for col in int_cols:
         if col in df.columns:
-            df[col] = (
-                pd.to_numeric(df[col], errors="coerce")
-                .round()
-                .astype("Int64")
-            )
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
     return df
 
 
@@ -122,10 +127,14 @@ async def run_coingecko_worker() -> None:
     if not category:
         raise ValueError("La variable d'environnement COINGECKO_CATEGORY est manquante.")
 
+
+
     min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
     min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
     batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
     rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
+
+
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
 
@@ -137,9 +146,11 @@ async def run_coingecko_worker() -> None:
     logging.info(f"{len(existing_ids)} tokens déjà présents dans la table BigQuery.")
 
     try:
+
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session, rate_limit=rate_limit)
+
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
             market = await client.list_tokens(category)
             

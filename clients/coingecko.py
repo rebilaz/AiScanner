@@ -1,8 +1,10 @@
+
 import os
 import aiohttp
 import asyncio
 import logging
 from aiolimiter import AsyncLimiter
+
 
 class CoinGeckoClient:
     """Minimal async client for the CoinGecko API."""
@@ -14,6 +16,17 @@ class CoinGeckoClient:
         # rate_limit is expressed per minute
         self.limiter = AsyncLimiter(rate_limit, 60)
         self.base = os.getenv("COINGECKO_API_BASE_URL", "https://api.coingecko.com/api/v3")
+
+
+
+    def __init__(self, session: aiohttp.ClientSession, rate_limit: int | None = None) -> None:
+        self.session = session
+        if rate_limit is None:
+            rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
+        # rate_limit is expressed per minute
+        self.limiter = AsyncLimiter(rate_limit, 60)
+        self.base = os.getenv("COINGECKO_API_BASE_URL", "https://api.coingecko.com/api/v3")
+
 
     async def _get(self, path: str, params: dict | None = None, retries: int = 3) -> dict | None:
         """Perform GET request with basic retry logic."""
