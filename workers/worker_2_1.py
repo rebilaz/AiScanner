@@ -82,7 +82,9 @@ def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFram
             "atl_change_percentage",
         ]
     if int_cols is None:
+
         int_cols = ["market_cap", "fully_diluted_valuation"]
+
 
     for col in float_cols:
         if col in df.columns:
