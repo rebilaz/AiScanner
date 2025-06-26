@@ -44,6 +44,20 @@ class BigQueryClient:
         """Generate BigQuery schema from DataFrame dtypes."""
         schema: List[bigquery.SchemaField] = []
         for column, dtype in df.dtypes.items():
+            if column == "roi":
+                schema.append(
+                    bigquery.SchemaField(
+                        "roi",
+                        "RECORD",
+                        fields=[
+                            bigquery.SchemaField("times", "FLOAT"),
+                            bigquery.SchemaField("currency", "STRING"),
+                            bigquery.SchemaField("percentage", "FLOAT"),
+                        ],
+                    )
+                )
+                continue
+
             field_type = "STRING"
             if pd.api.types.is_integer_dtype(dtype):
                 field_type = "INTEGER"

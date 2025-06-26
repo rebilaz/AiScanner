@@ -23,7 +23,12 @@ def fetch_existing_ids(bq_client, project_id, dataset, table) -> set:
 
 
 def _extract_data(raw: dict, now_utc: str) -> dict:
-    roi = raw.get("roi") or {}
+    roi_raw = raw.get("roi") or {}
+    roi = {
+        "times": roi_raw.get("times"),
+        "currency": roi_raw.get("currency"),
+        "percentage": roi_raw.get("percentage"),
+    }
     md = raw.get("market_data") or {}
     return {
         "id_projet": raw.get("id"),
@@ -50,7 +55,7 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
         "atl": md.get("atl", {}).get("usd"),
         "atl_change_percentage": md.get("atl_change_percentage", {}).get("usd"),
         "atl_date": md.get("atl_date", {}).get("usd"),
-        "roi": str(roi),
+        "roi": roi,
         "last_updated": raw.get("last_updated"),
         "chaine_contrat": next(iter(raw.get("platforms", {}) or {}), None),
         "adresse_contrat": next(iter((raw.get("platforms", {}) or {}).values()), None),
@@ -60,6 +65,43 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
     }
 
 
+<<<<<<< ifkvoe-codex/analyser-blocage-api-coingecko-et-solutions
+def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFrame:
+    """Cast specified columns to float or integer types."""
+    if float_cols is None:
+        float_cols = [
+            "prix_usd",
+            "fully_diluted_valuation",
+            "volume_24h",
+            "high_24h",
+            "low_24h",
+            "price_change_24h",
+            "variation_24h_pct",
+            "market_cap_change_24h",
+            "market_cap_change_percentage_24h",
+            "circulating_supply",
+            "total_supply",
+            "max_supply",
+            "ath_usd",
+            "ath_change_pct",
+            "atl",
+            "atl_change_percentage",
+        ]
+    if int_cols is None:
+        int_cols = ["market_cap", "fully_diluted_valuation"]
+
+    for col in float_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = (
+                pd.to_numeric(df[col], errors="coerce")
+                .round()
+                .astype("Int64")
+            )
+    return df
+=======
 
 def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFrame:
     """Cast specified columns to float or integer types."""
@@ -92,6 +134,7 @@ def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFram
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
     return df
+>>>>>>> main
 
 
 
@@ -115,12 +158,19 @@ async def run_coingecko_worker() -> None:
     if not category:
         raise ValueError("La variable d'environnement COINGECKO_CATEGORY est manquante.")
 
+<<<<<<< ifkvoe-codex/analyser-blocage-api-coingecko-et-solutions
+    min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
+    min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
+    batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
+    rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
+=======
 
     min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
     min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
     batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
     rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
 
+>>>>>>> main
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
 
@@ -132,10 +182,16 @@ async def run_coingecko_worker() -> None:
     logging.info(f"{len(existing_ids)} tokens déjà présents dans la table BigQuery.")
 
     try:
+<<<<<<< ifkvoe-codex/analyser-blocage-api-coingecko-et-solutions
+        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        async with aiohttp.ClientSession(connector=connector) as session:
+            client = CoinGeckoClient(session, rate_limit=rate_limit)
+=======
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session, rate_limit=rate_limit)
 
+>>>>>>> main
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
             market = await client.list_tokens(category)
             
