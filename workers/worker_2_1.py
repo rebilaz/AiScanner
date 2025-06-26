@@ -60,6 +60,7 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
     }
 
 
+
 def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFrame:
     """Cast specified columns to float or integer types."""
     if float_cols is None:
@@ -93,6 +94,7 @@ def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFram
     return df
 
 
+
 async def run_coingecko_worker() -> None:
     logging.info("\n--- WORKER COINGECKO : DÉMARRAGE ---\n")
     load_dotenv()
@@ -113,10 +115,12 @@ async def run_coingecko_worker() -> None:
     if not category:
         raise ValueError("La variable d'environnement COINGECKO_CATEGORY est manquante.")
 
+
     min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
     min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
     batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
     rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
+
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
 
@@ -131,6 +135,7 @@ async def run_coingecko_worker() -> None:
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(connector=connector) as session:
             client = CoinGeckoClient(session, rate_limit=rate_limit)
+
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
             market = await client.list_tokens(category)
             

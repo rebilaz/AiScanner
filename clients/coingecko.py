@@ -15,6 +15,7 @@ class CoinGeckoClient:
         self.limiter = AsyncLimiter(rate_limit, 60)
         self.base = os.getenv("COINGECKO_API_BASE_URL", "https://api.coingecko.com/api/v3")
 
+
     async def _get(self, path: str, params: dict | None = None, retries: int = 3) -> dict | None:
         """Perform GET request with basic retry logic."""
         backoff = 1
@@ -58,6 +59,7 @@ class CoinGeckoClient:
                     else:
                         raise
         raise RuntimeError(f"Failed request to {url} after {retries} attempts")
+
 
     async def list_tokens(self, category: str) -> list[dict] | None:
         params = {
