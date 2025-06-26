@@ -23,7 +23,12 @@ def fetch_existing_ids(bq_client, project_id, dataset, table) -> set:
 
 
 def _extract_data(raw: dict, now_utc: str) -> dict:
-    roi = raw.get("roi") or {}
+    roi_raw = raw.get("roi") or {}
+    roi = {
+        "times": roi_raw.get("times"),
+        "currency": roi_raw.get("currency"),
+        "percentage": roi_raw.get("percentage"),
+    }
     md = raw.get("market_data") or {}
     return {
         "id_projet": raw.get("id"),
@@ -50,7 +55,7 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
         "atl": md.get("atl", {}).get("usd"),
         "atl_change_percentage": md.get("atl_change_percentage", {}).get("usd"),
         "atl_date": md.get("atl_date", {}).get("usd"),
-        "roi": str(roi),
+        "roi": roi,
         "last_updated": raw.get("last_updated"),
         "chaine_contrat": next(iter(raw.get("platforms", {}) or {}), None),
         "adresse_contrat": next(iter((raw.get("platforms", {}) or {}).values()), None),
@@ -60,12 +65,11 @@ def _extract_data(raw: dict, now_utc: str) -> dict:
     }
 
 
-def force_float(df: pd.DataFrame, float_cols=None) -> pd.DataFrame:
-    """Force les colonnes de float_cols en float32/float64 si elles existent dans le DataFrame."""
+def force_float(df: pd.DataFrame, float_cols=None, int_cols=None) -> pd.DataFrame:
+    """Cast specified columns to float or integer types."""
     if float_cols is None:
         float_cols = [
             "prix_usd",
-            "market_cap",
             "fully_diluted_valuation",
             "volume_24h",
             "high_24h",
@@ -80,11 +84,21 @@ def force_float(df: pd.DataFrame, float_cols=None) -> pd.DataFrame:
             "ath_usd",
             "ath_change_pct",
             "atl",
-            "atl_change_percentage"
+            "atl_change_percentage",
         ]
+    if int_cols is None:
+        int_cols = ["market_cap", "fully_diluted_valuation"]
+
     for col in float_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype(float)
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = (
+                pd.to_numeric(df[col], errors="coerce")
+                .round()
+                .astype("Int64")
+            )
     return df
 
 
@@ -111,6 +125,7 @@ async def run_coingecko_worker() -> None:
     min_cap = int(os.getenv("COINGECKO_MIN_MARKET_CAP", "0"))
     min_vol = int(os.getenv("COINGECKO_MIN_VOLUME_USD", "0"))
     batch_size = int(os.getenv("COINGECKO_BATCH_SIZE", "20"))
+    rate_limit = int(os.getenv("COINGECKO_RATE_LIMIT", "50"))
     
     logging.info(f"Configuration chargée : project={project_id}, dataset={dataset}, table={table}, category='{category}'")
 
@@ -124,7 +139,7 @@ async def run_coingecko_worker() -> None:
     try:
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(connector=connector) as session:
-            client = CoinGeckoClient(session)
+            client = CoinGeckoClient(session, rate_limit=rate_limit)
             logging.info(f"\nAppel à l'API CoinGecko pour la catégorie : '{category}'...")
             market = await client.list_tokens(category)
             
