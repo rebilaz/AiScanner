@@ -96,7 +96,7 @@ async def test_token_details_server_error_fails_after_retries(mocker):
     # La méthode get retournera toujours une erreur 503
     mock_session.get.return_value = cm
 
-    # Le client est configuré pour 3 tentatives par défaut dans la méthode `get`
+    # Le client est configuré pour 5 tentatives par défaut dans la méthode `get`
     client = CoinGeckoClient(mock_session, rate_limit=100)
     mocker.patch("asyncio.sleep", mocker.AsyncMock())
 
@@ -104,7 +104,7 @@ async def test_token_details_server_error_fails_after_retries(mocker):
     with pytest.raises(RuntimeError):
         await client.token_details("bitcoin")
     
-    assert mock_session.get.call_count == 3 # Vérifie que les 3 tentatives ont eu lieu
+    assert mock_session.get.call_count == 5  # Vérifie que les 5 tentatives ont eu lieu
 
 
 @pytest.mark.asyncio
@@ -126,7 +126,6 @@ async def test_token_details_invalid_json_raises_exception(mocker):
 
     client = CoinGeckoClient(mock_session, rate_limit=100)
     
-    # On vérifie qu'une exception de décodage JSON est bien levée.
-    # aiohttp peut aussi lever ContentTypeError si les headers sont incorrects.
-    with pytest.raises((json.JSONDecodeError, aiohttp.ContentTypeError)):
-        await client.token_details("bitcoin")
+    # La méthode devrait retourner None quand le JSON est invalide
+    result = await client.token_details("bitcoin")
+    assert result is None

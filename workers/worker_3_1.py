@@ -126,14 +126,54 @@ def get_event_abi(abi: List[Dict[str, Any]], topic0: str) -> Optional[Dict[str, 
     return None
 
 def decode_log(row: pd.Series, abi: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Décode une entrée de log en utilisant l'ABI fourni."""
+    """Décode une entrée de log en utilisant l'ABI fourni avec de nombreux logs de debug."""
+
     if row["topics"] is None or len(row["topics"]) == 0:
         logging.debug("Pas de topics pour le log %s", row.get("transaction_hash"))
         return None
-    event_abi = get_event_abi(abi, row["topics"][0])
+
+    logging.debug("Adresse du contrat: %s", row["address"])
+    logging.debug("Topics (%d): %s", len(row["topics"]), row["topics"])
+    logging.debug("Data: %s", row["data"])
+
+    topic0 = row["topics"][0]
+    logging.debug("Event signature (topic0): %s", topic0)
+
+    event_abi = get_event_abi(abi, topic0)
     if not event_abi:
-        logging.debug("ABI ne contient pas la définition pour le topic %s du contrat %s", row["topics"][0], row["address"])
+        logging.debug("Aucune entrée ABI ne correspond au topic %s", topic0)
+        signatures = []
+        for entry in abi:
+            if entry.get("type") != "event" or entry.get("anonymous", False):
+                continue
+            inputs = entry.get("inputs", [])
+            sig_text = f"{entry['name']}({','.join([i['type'] for i in inputs])})"
+            sig_hash = Web3.keccak(text=sig_text).hex()
+            signatures.append(f"{sig_text} -> {sig_hash}")
+        logging.debug("Signatures présentes dans l'ABI:\n%s", "\n".join(signatures))
+        logging.debug("ABI complet utilisé:\n%s", json.dumps(abi, indent=2))
         return None
+
+    logging.debug("Entrée ABI correspondante: %s", json.dumps(event_abi, indent=2))
+
+    # Détermination heuristique du type de log
+    log_type = "Other"
+    if event_abi.get("name") == "Transfer":
+        input_names = [i.get("name") for i in event_abi.get("inputs", [])]
+        if "tokenId" in input_names or "id" in input_names:
+            log_type = "ERC721"
+        elif "value" in input_names:
+            log_type = "ERC20"
+    elif event_abi.get("name") in ("Approval", "ApprovalForAll"):
+        input_names = [i.get("name") for i in event_abi.get("inputs", [])]
+        if "value" in input_names:
+            log_type = "ERC20"
+        else:
+            log_type = "ERC721"
+
+    logging.debug("Type de log détecté: %s", log_type)
+    logging.debug("Event attendu: %s avec inputs %s", event_abi.get("name"), event_abi.get("inputs"))
+
     try:
         raw_log = {
             "address": Web3.to_checksum_address(row["address"]),
@@ -149,11 +189,12 @@ def decode_log(row: pd.Series, abi: List[Dict[str, Any]]) -> Optional[Dict[str, 
             "transaction_hash": row["transaction_hash"],
             "log_index": row["log_index"],
             "contract_address": row["address"].lower(),
+            "log_type": log_type,
         }
-        logging.debug(f"Décodage réussi pour log {row['transaction_hash']} : {record}")
+        logging.debug("Décodage réussi pour log %s: %s", row["transaction_hash"], record)
         return record
-    except Exception as exc:
-        logging.warning("Échec du décodage log %s: %s", row.get("transaction_hash"), exc)
+    except Exception:
+        logging.exception("Échec du décodage du log %s", row.get("transaction_hash"))
         return None
 
 # --- Fonction Principale du Worker ---
@@ -216,6 +257,8 @@ def run_label_events_worker() -> bool:
         return True
 
     all_decoded_records = []
+    success_count = 0
+    failure_count = 0
     
     for _, contract_row in contracts_to_process_df.iterrows():
         address, chain, nom, symbole = (
@@ -266,15 +309,31 @@ def run_label_events_worker() -> bool:
             logging.debug(f"Décodage du log: {log_row.to_dict()}")
             record = decode_log(log_row, abi)
             if record:
+                success_count += 1
                 record.update({'token_name': nom, 'token_symbol': symbole})
                 all_decoded_records.append(record)
+            else:
+                failure_count += 1
 
     if not all_decoded_records:
         logging.info("Aucun nouvel événement n'a été décodé sur l'ensemble du lot.")
+        logging.info(
+            "Résumé du décodage : %d succès / %d échecs",
+            success_count,
+            failure_count,
+        )
         return True
 
     df_events = pd.DataFrame(all_decoded_records)
-    logging.info("Envoi de %d événements décodés vers BigQuery.", len(df_events))
+    logging.info(
+        "Envoi de %d événements décodés vers BigQuery.",
+        len(df_events),
+    )
+    logging.info(
+        "Résumé du décodage : %d succès / %d échecs",
+        success_count,
+        failure_count,
+    )
     try:
         bq_client.upload_dataframe(df_events, DATASET, DEST_TABLE)
     except Exception as e:
