@@ -9,6 +9,7 @@ import time
 import logging
 import json
 from typing import Any, Dict, List, Optional
+import traceback
 
 import pandas as pd
 import requests
@@ -125,76 +126,63 @@ def get_event_abi(abi: List[Dict[str, Any]], topic0: str) -> Optional[Dict[str, 
             return entry
     return None
 
-def decode_log(row: pd.Series, abi: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Décode une entrée de log en utilisant l'ABI fourni avec de nombreux logs de debug."""
+def decode_log(raw_log: Any, abi: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Decode a log using the provided ABI with extensive debug information."""
 
-    if row["topics"] is None or len(row["topics"]) == 0:
-        logging.debug("Pas de topics pour le log %s", row.get("transaction_hash"))
+    log = raw_log.to_dict() if hasattr(raw_log, "to_dict") else raw_log
+
+    if not log.get("topics"):
+        print("[decode_log] Pas de topics pour le log", log.get("transaction_hash"))
         return None
 
-    logging.debug("Adresse du contrat: %s", row["address"])
-    logging.debug("Topics (%d): %s", len(row["topics"]), row["topics"])
-    logging.debug("Data: %s", row["data"])
+    print(f"[decode_log] Contract: {log.get('address')} | block: {log.get('block_number')} | tx: {log.get('transaction_hash')}")
+    print(f"[decode_log] Topics ({len(log['topics'])}): {log['topics']}")
+    print(f"[decode_log] topic0: {log['topics'][0]}")
 
-    topic0 = row["topics"][0]
-    logging.debug("Event signature (topic0): %s", topic0)
+    signatures = []
+    for entry in abi:
+        if entry.get("type") != "event" or entry.get("anonymous", False):
+            continue
+        inputs = entry.get("inputs", [])
+        sig_text = f"{entry['name']}({','.join([i['type'] for i in inputs])})"
+        sig_hash = Web3.keccak(text=sig_text).hex()
+        signatures.append(f"{entry['name']}: {sig_text} -> {sig_hash}")
+    print("[decode_log] Signatures ABI:\n" + "\n".join(signatures))
 
+    topic0 = log["topics"][0]
     event_abi = get_event_abi(abi, topic0)
     if not event_abi:
-        logging.debug("Aucune entrée ABI ne correspond au topic %s", topic0)
-        signatures = []
-        for entry in abi:
-            if entry.get("type") != "event" or entry.get("anonymous", False):
-                continue
-            inputs = entry.get("inputs", [])
-            sig_text = f"{entry['name']}({','.join([i['type'] for i in inputs])})"
-            sig_hash = Web3.keccak(text=sig_text).hex()
-            signatures.append(f"{sig_text} -> {sig_hash}")
-        logging.debug("Signatures présentes dans l'ABI:\n%s", "\n".join(signatures))
-        logging.debug("ABI complet utilisé:\n%s", json.dumps(abi, indent=2))
+        print(f"[decode_log] Aucun event ne correspond au topic {topic0}")
+        print(f"[decode_log] Taille topics: {len(log['topics'])}")
+        print("[decode_log] ABI complet:\n" + json.dumps(abi, indent=2))
         return None
 
-    logging.debug("Entrée ABI correspondante: %s", json.dumps(event_abi, indent=2))
-
-    # Détermination heuristique du type de log
-    log_type = "Other"
-    if event_abi.get("name") == "Transfer":
-        input_names = [i.get("name") for i in event_abi.get("inputs", [])]
-        if "tokenId" in input_names or "id" in input_names:
-            log_type = "ERC721"
-        elif "value" in input_names:
-            log_type = "ERC20"
-    elif event_abi.get("name") in ("Approval", "ApprovalForAll"):
-        input_names = [i.get("name") for i in event_abi.get("inputs", [])]
-        if "value" in input_names:
-            log_type = "ERC20"
-        else:
-            log_type = "ERC721"
-
-    logging.debug("Type de log détecté: %s", log_type)
-    logging.debug("Event attendu: %s avec inputs %s", event_abi.get("name"), event_abi.get("inputs"))
+    print("[decode_log] ABI utilisé:", json.dumps(event_abi, indent=2))
+    print(f"[decode_log] Event attendu: {event_abi.get('name')} signature topic0")
 
     try:
-        raw_log = {
-            "address": Web3.to_checksum_address(row["address"]),
-            "topics": [bytes.fromhex(t[2:]) for t in row["topics"]],
-            "data": bytes.fromhex(row["data"][2:]),
+        formatted_log = {
+            "address": Web3.to_checksum_address(log["address"]),
+            "topics": [bytes.fromhex(t[2:]) if isinstance(t, str) else t for t in log["topics"]],
+            "data": bytes.fromhex(log["data"][2:]) if isinstance(log["data"], str) else log["data"],
         }
-        decoded = get_event_data(w3_global_decoder.codec, event_abi, raw_log)  # type: ignore
+        decoded = get_event_data(w3_global_decoder.codec, event_abi, formatted_log)  # type: ignore
         decoded_args = {k: str(v) for k, v in decoded["args"].items()}
         record = {
             "event_name": event_abi["name"],
             **decoded_args,
-            "block_number": row["block_number"],
-            "transaction_hash": row["transaction_hash"],
-            "log_index": row["log_index"],
-            "contract_address": row["address"].lower(),
-            "log_type": log_type,
+            "block_number": log.get("block_number"),
+            "transaction_hash": log.get("transaction_hash"),
+            "log_index": log.get("log_index"),
+            "contract_address": log.get("address", "").lower(),
         }
-        logging.debug("Décodage réussi pour log %s: %s", row["transaction_hash"], record)
+        print("[decode_log] Décodage réussi", record)
         return record
     except Exception:
-        logging.exception("Échec du décodage du log %s", row.get("transaction_hash"))
+        print("[decode_log] Échec du décodage pour le topic", topic0)
+        print("[decode_log] ABI utilisé:", json.dumps(event_abi, indent=2))
+        print("[decode_log] Event trouvé:", topic0)
+        traceback.print_exc()
         return None
 
 # --- Fonction Principale du Worker ---
@@ -316,12 +304,8 @@ def run_label_events_worker() -> bool:
                 failure_count += 1
 
     if not all_decoded_records:
-        logging.info("Aucun nouvel événement n'a été décodé sur l'ensemble du lot.")
-        logging.info(
-            "Résumé du décodage : %d succès / %d échecs",
-            success_count,
-            failure_count,
-        )
+        print("Aucun nouvel événement n'a été décodé sur l'ensemble du lot.")
+        print(f"Logs décodés: {success_count} / échecs: {failure_count}")
         return True
 
     df_events = pd.DataFrame(all_decoded_records)
@@ -329,11 +313,7 @@ def run_label_events_worker() -> bool:
         "Envoi de %d événements décodés vers BigQuery.",
         len(df_events),
     )
-    logging.info(
-        "Résumé du décodage : %d succès / %d échecs",
-        success_count,
-        failure_count,
-    )
+    print(f"Logs décodés: {success_count} / échecs: {failure_count}")
     try:
         bq_client.upload_dataframe(df_events, DATASET, DEST_TABLE)
     except Exception as e:
