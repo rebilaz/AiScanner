@@ -1,4 +1,4 @@
-# Fichier : workers/worker_3_1.py (Version corrigée et full logs)
+# Fichier : workers/event_translator_worker.py (Version Finale Stable et Complète)
 """
 Worker de décodage d'événements (logs) avec détection de proxy robuste via
 lecture directe du stockage de la blockchain (EIP-1967).
@@ -9,7 +9,6 @@ import time
 import logging
 import json
 from typing import Any, Dict, List, Optional
-import traceback
 
 import pandas as pd
 import requests
@@ -29,16 +28,8 @@ class BigQueryClient:
         table_ref = self.client.dataset(dataset_id).table(table_id)
         job_config = bigquery.LoadJobConfig(
             write_disposition="WRITE_APPEND",
-            autodetect=True,  # Laisse BigQuery gérer les nouvelles colonnes d'événements
+            autodetect=True,
         )
-        # Colonnes de base
-        job_config.schema = [
-            bigquery.SchemaField("transaction_hash", "STRING"),
-            bigquery.SchemaField("log_index", "INTEGER"),
-            bigquery.SchemaField("contract_address", "STRING"),
-            bigquery.SchemaField("event_name", "STRING"),
-        ]
-
         job = self.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
         job.result()
         logging.info("DataFrame chargé avec succès dans %s.%s", dataset_id, table_id)
@@ -55,7 +46,7 @@ DATASET = os.getenv("BQ_DATASET")
 LOGS_TABLE = os.getenv("BQ_LOGS_RAW_TABLE", "logs_raw")
 TOKENS_TABLE = os.getenv("BQ_TOKENS_TABLE", "Market_data")
 DEST_TABLE = os.getenv("BQ_LABELED_EVENTS_TABLE", "labeled_events")
-BATCH_SIZE = int(os.getenv("EVENTS_BATCH_SIZE", "5"))
+BATCH_SIZE = int(os.getenv("EVENTS_BATCH_SIZE", "10"))
 
 NODE_RPCS = {
     "ethereum": os.getenv("ETHEREUM_NODE_RPC"),
@@ -99,19 +90,18 @@ def get_final_abi(address: str, chain: str, endpoints: Dict, w3_provider: Web3) 
         logging.info("ABI trouvé dans le mapping manuel pour %s.", address)
         return ABI_MAPPING[address.lower()]
         
-    IMPLEMENTATION_SLOT = int("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc", 16)
+    IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
     try:
         checksum_address = Web3.to_checksum_address(address)
-        storage_content = w3_provider.eth.get_storage_at(checksum_address, IMPLEMENTATION_SLOT)
-        if storage_content is not None and hasattr(storage_content, "hex"):
-            implementation_address = "0x" + storage_content.hex()[-40:]
-            if int(implementation_address, 16) != 0:
-                logging.info("Proxy EIP-1967 détecté ! Implémentation : %s", implementation_address)
-                abi = fetch_abi_from_explorer(implementation_address, chain, endpoints)
-                if abi:
-                    return abi
+        storage_content = w3_provider.eth.get_storage_at(checksum_address, IMPLEMENTATION_SLOT)  # type: ignore
+        implementation_address = "0x" + storage_content.hex()[-40:]
+        
+        if int(implementation_address, 16) != 0:
+            logging.info("Proxy EIP-1967 détecté ! Implémentation : %s", implementation_address)
+            return fetch_abi_from_explorer(implementation_address, chain, endpoints)
     except Exception as e:
         logging.debug("Ce n'est probablement pas un proxy EIP-1967 (%s): %s", address, e)
+        
     return fetch_abi_from_explorer(address, chain, endpoints)
 
 def get_event_abi(abi: List[Dict[str, Any]], topic0: str) -> Optional[Dict[str, Any]]:
@@ -126,67 +116,31 @@ def get_event_abi(abi: List[Dict[str, Any]], topic0: str) -> Optional[Dict[str, 
             return entry
     return None
 
-def decode_log(raw_log: Any, abi: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Decode a log using the provided ABI with extensive debug information."""
-
-    log = raw_log.to_dict() if hasattr(raw_log, "to_dict") else raw_log
-
-    if not log.get("topics"):
-        print("[decode_log] Pas de topics pour le log", log.get("transaction_hash"))
+def decode_log(row: pd.Series, abi: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Décode une entrée de log en utilisant l'ABI fourni."""
+    if pd.isna(row["topics"]) or len(row["topics"]) == 0:
         return None
 
-    print(f"[decode_log] Contract: {log.get('address')} | block: {log.get('block_number')} | tx: {log.get('transaction_hash')}")
-    print(f"[decode_log] Topics ({len(log['topics'])}): {log['topics']}")
-    print(f"[decode_log] topic0: {log['topics'][0]}")
-
-    signatures = []
-    for entry in abi:
-        if entry.get("type") != "event" or entry.get("anonymous", False):
-            continue
-        inputs = entry.get("inputs", [])
-        sig_text = f"{entry['name']}({','.join([i['type'] for i in inputs])})"
-        sig_hash = Web3.keccak(text=sig_text).hex()
-        signatures.append(f"{entry['name']}: {sig_text} -> {sig_hash}")
-    print("[decode_log] Signatures ABI:\n" + "\n".join(signatures))
-
-    topic0 = log["topics"][0]
-    event_abi = get_event_abi(abi, topic0)
+    event_abi = get_event_abi(abi, row["topics"][0])
     if not event_abi:
-        print(f"[decode_log] Aucun event ne correspond au topic {topic0}")
-        print(f"[decode_log] Taille topics: {len(log['topics'])}")
-        print("[decode_log] ABI complet:\n" + json.dumps(abi, indent=2))
+        logging.debug("ABI ne contient pas la définition pour le topic %s du contrat %s", row["topics"][0], row["address"])
         return None
-
-    print("[decode_log] ABI utilisé:", json.dumps(event_abi, indent=2))
-    print(f"[decode_log] Event attendu: {event_abi.get('name')} signature topic0")
-
+        
+    raw_log = {
+        "address": Web3.to_checksum_address(row["address"]),
+        "topics": [bytes.fromhex(t[2:]) for t in row["topics"]],
+        "data": bytes.fromhex(row["data"][2:]),
+    }
     try:
-        formatted_log = {
-            "address": Web3.to_checksum_address(log["address"]),
-            "topics": [bytes.fromhex(t[2:]) if isinstance(t, str) else t for t in log["topics"]],
-            "data": bytes.fromhex(log["data"][2:]) if isinstance(log["data"], str) else log["data"],
-        }
-        decoded = get_event_data(w3_global_decoder.codec, event_abi, formatted_log)  # type: ignore
-        decoded_args = {k: str(v) for k, v in decoded["args"].items()}
-        record = {
-            "event_name": event_abi["name"],
-            **decoded_args,
-            "block_number": log.get("block_number"),
-            "transaction_hash": log.get("transaction_hash"),
-            "log_index": log.get("log_index"),
-            "contract_address": log.get("address", "").lower(),
-        }
-        print("[decode_log] Décodage réussi", record)
-        return record
-    except Exception:
-        print("[decode_log] Échec du décodage pour le topic", topic0)
-        print("[decode_log] ABI utilisé:", json.dumps(event_abi, indent=2))
-        print("[decode_log] Event trouvé:", topic0)
-        traceback.print_exc()
+        decoded = get_event_data(w3_global_decoder.codec, event_abi, raw_log)  # type: ignore
+    except Exception as exc:
+        logging.warning("Échec du décodage log %s: %s", row.get("transaction_hash"), exc)
         return None
+        
+    decoded_args = {k: str(v) for k, v in decoded["args"].items()}
+    return {"event_name": event_abi["name"], **decoded_args, "block_number": row["block_number"], "transaction_hash": row["transaction_hash"], "log_index": row["log_index"], "contract_address": row["address"].lower()}
 
 # --- Fonction Principale du Worker ---
-
 def run_label_events_worker() -> bool:
     """Point d'entrée principal pour décoder les logs bruts."""
     logging.info("--- WORKER TRADUCTEUR (Final) : DÉMARRAGE ---")
@@ -196,21 +150,17 @@ def run_label_events_worker() -> bool:
         return False
     
     assert PROJECT_ID is not None and DATASET is not None
-
-    web3_providers = {
-        chain: Web3(Web3.HTTPProvider(rpc_url))
-        for chain, rpc_url in NODE_RPCS.items()
-        if rpc_url and Web3(Web3.HTTPProvider(rpc_url)).is_connected()
-    }
+    
+    web3_providers = {chain: Web3(Web3.HTTPProvider(rpc_url)) for chain, rpc_url in NODE_RPCS.items() if rpc_url and Web3(Web3.HTTPProvider(rpc_url)).is_connected()}
     if not web3_providers:
-        logging.error("Aucun noeud RPC valide n'a pu être connecté. Vérifiez les variables d'environnement RPC.")
+        logging.error("Aucun noeud RPC valide n'a pu être connecté. Vérifiez vos variables d'environnement RPC.")
         return False
     logging.info("Connecté à %d chaînes.", len(web3_providers))
     
     bq_client = BigQueryClient(PROJECT_ID)
     client = bq_client.client
     dest_table_id = f"{PROJECT_ID}.{DATASET}.{DEST_TABLE}"
-
+    
     try:
         client.get_table(dest_table_id)
         logging.info("La table destination %s existe déjà.", dest_table_id)
@@ -229,32 +179,22 @@ def run_label_events_worker() -> bool:
         "polygon-pos": {"url": "https://api.polygonscan.com/api", "key": os.getenv("POLYGONSCAN_API_KEY")}
     }
 
-    query_contracts = (
-        f"SELECT DISTINCT adresse_contrat, chaine_contrat, nom, symbole FROM `{PROJECT_ID}.{DATASET}.{TOKENS_TABLE}` "
-        f"WHERE adresse_contrat IS NOT NULL AND adresse_contrat != 'Indisponible'"
-    )
+    query_contracts = f"SELECT DISTINCT adresse_contrat, chaine_contrat, nom, symbole FROM `{PROJECT_ID}.{DATASET}.{TOKENS_TABLE}` WHERE adresse_contrat IS NOT NULL AND adresse_contrat != 'Indisponible'"
     try:
         contracts_to_process_df = client.query(query_contracts).to_dataframe().head(BATCH_SIZE)
         logging.info("%d contrats à traiter.", len(contracts_to_process_df))
     except Exception as e:
         logging.error("Impossible de charger les contrats depuis la table `%s`: %s", TOKENS_TABLE, e)
         return False
-
+        
     if contracts_to_process_df.empty:
         logging.info("Aucun contrat à traiter.")
         return True
 
     all_decoded_records = []
-    success_count = 0
-    failure_count = 0
     
     for _, contract_row in contracts_to_process_df.iterrows():
-        address, chain, nom, symbole = (
-            contract_row["adresse_contrat"].lower(),
-            contract_row["chaine_contrat"],
-            contract_row["nom"],
-            contract_row["symbole"],
-        )
+        address, chain, nom, symbole = contract_row["adresse_contrat"].lower(), contract_row["chaine_contrat"], contract_row["nom"], contract_row["symbole"]
         logging.info("--- Traitement du contrat : %s (%s) sur %s ---", nom, symbole, chain)
         
         w3_provider = web3_providers.get(chain)
@@ -264,7 +204,6 @@ def run_label_events_worker() -> bool:
             
         abi = abi_cache.get(address)
         if not abi:
-            logging.info("Récupération de l'ABI pour %s sur %s", address, chain)
             abi = get_final_abi(address, chain, endpoints, w3_provider)
             if not abi:
                 logging.warning("Impossible de continuer sans ABI pour %s. Contrat ignoré.", address)
@@ -283,7 +222,7 @@ def run_label_events_worker() -> bool:
         try:
             raw_logs_df = client.query(query_raw_logs).to_dataframe()
             if raw_logs_df.empty:
-                logging.info("Aucun nouveau log à traiter pour %s.", address)
+                logging.info("Aucun nouveau log pour %s.", address)
                 continue
             logging.info("%d logs bruts trouvés pour %s.", len(raw_logs_df), address)
         except Exception as e:
@@ -294,27 +233,19 @@ def run_label_events_worker() -> bool:
             continue
         
         for _, log_row in raw_logs_df.iterrows():
-            logging.debug(f"Décodage du log: {log_row.to_dict()}")
             record = decode_log(log_row, abi)
             if record:
-                success_count += 1
                 record.update({'token_name': nom, 'token_symbol': symbole})
                 all_decoded_records.append(record)
-            else:
-                failure_count += 1
 
     if not all_decoded_records:
-        print("Aucun nouvel événement n'a été décodé sur l'ensemble du lot.")
-        print(f"Logs décodés: {success_count} / échecs: {failure_count}")
+        logging.info("Aucun événement n'a été décodé sur l'ensemble du lot.")
         return True
 
     df_events = pd.DataFrame(all_decoded_records)
-    logging.info(
-        "Envoi de %d événements décodés vers BigQuery.",
-        len(df_events),
-    )
-    print(f"Logs décodés: {success_count} / échecs: {failure_count}")
+    logging.info("Envoi de %d événements décodés vers BigQuery.", len(df_events))
     try:
+        assert DATASET is not None and DEST_TABLE is not None
         bq_client.upload_dataframe(df_events, DATASET, DEST_TABLE)
     except Exception as e:
         logging.error("Échec de l'envoi vers BigQuery: %s", e)
