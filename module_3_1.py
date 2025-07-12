@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from dataclasses import dataclass
 from typing import Optional
 
 from google.cloud import bigquery
@@ -22,6 +23,25 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
+@dataclass
+class PipelineStats:
+    """Summary statistics for one pipeline run."""
+
+    signals: int
+    anomalies: int
+    incidents: Optional[int] = None
+
+    def summary_message(self) -> str:
+        """Return a short Telegram-ready summary."""
+        parts = [
+            "\U0001F4CA Scan terminé ! " f"{self.signals} signaux",
+            f"{self.anomalies} anomalies",
+        ]
+        if self.incidents is not None:
+            parts.append(f"{self.incidents} incident(s) on-chain")
+        return ", ".join(parts) + "."
+
+
 def _get_row_count(client: bigquery.Client, table: str) -> int:
     """Return the number of rows for a table, or 0 on failure."""
     try:
@@ -35,11 +55,8 @@ def _get_row_count(client: bigquery.Client, table: str) -> int:
 
 
 def compose_summary(signals: int, anomalies: int, incidents: Optional[int] = None) -> str:
-    """Create the Telegram message summarizing pipeline results."""
-    parts = [f"\U0001F4CA Scan terminé ! {signals} signaux", f"{anomalies} anomalies"]
-    if incidents is not None:
-        parts.append(f"{incidents} incident(s) on-chain")
-    return ", ".join(parts) + "."
+    """Return a summary string from raw counts."""
+    return PipelineStats(signals, anomalies, incidents).summary_message()
 
 
 async def _send_async(token: str, chat_id: str, text: str) -> None:
@@ -50,6 +67,7 @@ async def _send_async(token: str, chat_id: str, text: str) -> None:
 def send_telegram_message(token: str, chat_id: str, text: str) -> None:
     """Send a Telegram message, compatible with sync or async contexts."""
     async def runner() -> None:
+        logging.info("Sending Telegram message: %s", text)
         await _send_async(token, chat_id, text)
 
     try:
@@ -82,8 +100,12 @@ def alert_from_bigquery() -> None:
     except Exception:
         logging.info("No incident information available")
 
-    message = compose_summary(signals, anomalies, incidents)
-    send_telegram_message(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, message)
+    stats = PipelineStats(signals, anomalies, incidents)
+    send_telegram_message(
+        TELEGRAM_BOT_TOKEN,
+        TELEGRAM_CHAT_ID,
+        stats.summary_message(),
+    )
     logging.info("Telegram alert sent")
 
 

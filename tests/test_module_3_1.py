@@ -29,3 +29,12 @@ def test_alert_from_bigquery_summary(mocker):
     assert "1 incident" in text
 
 
+def test_pipeline_stats_summary_message():
+    stats = module_3_1.PipelineStats(5, 2, 1)
+    text = stats.summary_message()
+    assert text.startswith("\U0001F4CA Scan terminé")
+    assert "5 signaux" in text
+    assert "2 anomalies" in text
+    assert "1 incident" in text
+
+
