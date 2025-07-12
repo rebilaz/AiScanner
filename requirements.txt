@@ -27,6 +27,7 @@ umap-learn
 openai
 slack_sdk
 scikit-learn
+python-telegram-bot
 
 joblib
 xgboost
